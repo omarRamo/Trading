@@ -14,9 +14,10 @@ from utils.formatting import format_currency, format_percent
 
 
 def bootstrap_page(title: str) -> None:
-    st.set_page_config(page_title=title, layout="wide")
-    require_login()
+    sidebar_state = "expanded" if st.session_state.get("authenticated") else "collapsed"
+    st.set_page_config(page_title=title, layout="wide", initial_sidebar_state=sidebar_state)
     initialize_database()
+    require_login()
     render_logout_control()
     _render_market_sync_sidebar(title)
     st.title(title)

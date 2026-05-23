@@ -40,6 +40,14 @@ with st.form("settings_form"):
     )
     investment_horizon = st.text_input("Horizon d'investissement", value=settings.get("investment_horizon", "long terme"))
     tech_limit = st.slider("Alerte exposition technologie", min_value=0.20, max_value=0.80, value=float(settings.get("tech_exposure_limit", 0.45)), step=0.05)
+    auto_sync = st.checkbox("Synchroniser automatiquement les donnees de marche", value=bool(settings.get("auto_sync_market_data", True)))
+    sync_interval = st.number_input(
+        "Intervalle de synchronisation marche (heures)",
+        min_value=1.0,
+        max_value=48.0,
+        value=float(settings.get("auto_sync_interval_hours", 6)),
+        step=1.0,
+    )
     submitted = st.form_submit_button("Sauvegarder les parametres")
 
 if submitted:
@@ -61,6 +69,8 @@ if submitted:
                 "risk_profile": risk_profile,
                 "investment_horizon": investment_horizon,
                 "tech_exposure_limit": tech_limit,
+                "auto_sync_market_data": auto_sync,
+                "auto_sync_interval_hours": sync_interval,
             }
         )
         st.success("Parametres sauvegardes.")

@@ -29,9 +29,6 @@ DEFAULT_SETTINGS = {
 
 RISK_PROFILES = ["prudent", "equilibre", "dynamique"]
 
-ACCESS_USERNAME = "omar"
-ACCESS_PASSWORD = "admin"
-
 DEFAULT_WATCHLIST = [
     {
         "ticker": "VUSA.L",

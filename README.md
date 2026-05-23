@@ -13,6 +13,21 @@ Objectif:
 
 L'application ne presente jamais ses resultats comme des ordres obligatoires. La decision finale d'achat ou de vente reste manuelle et appartient uniquement a l'investisseur.
 
+## Authentification Google
+
+L'application utilise une connexion Google OAuth locale. La premiere connexion avec un compte Google cree automatiquement un profil. Les connexions suivantes rouvrent le meme profil.
+
+Chaque profil Google possede ses propres donnees:
+
+- parametres;
+- watchlist;
+- portefeuille;
+- transactions;
+- idees d'investissement;
+- plans mensuels.
+
+Avant authentification, le menu lateral Streamlit est masque pour eviter d'exposer les pages de l'application.
+
 ## Regles strictes
 
 - Aucun passage d'ordre automatique.
@@ -45,6 +60,8 @@ Trading/
 |-- charts.py
 |-- requirements.txt
 |-- README.md
+|-- .streamlit/
+|   `-- secrets.toml.example
 |-- data/
 |   `-- trading_app.sqlite3
 |-- pages/
@@ -54,7 +71,9 @@ Trading/
 |   |-- 4_Idees_investissement.py
 |   |-- 5_Backtest.py
 |   |-- 6_Parametres.py
-|   `-- 7_Transactions.py
+|   |-- 7_Transactions.py
+|   |-- 8_Profil.py
+|   `-- 9_Wiki.py
 `-- utils/
     |-- __init__.py
     |-- formatting.py
@@ -75,6 +94,32 @@ Sur cette machine, si `python` ouvre le raccourci Microsoft Store, utiliser:
 ```bash
 py -3 -m pip install -r requirements.txt
 ```
+
+## Configuration Google OAuth
+
+Copie le fichier d'exemple:
+
+```bash
+copy .streamlit\secrets.toml.example .streamlit\secrets.toml
+```
+
+Puis renseigne:
+
+```toml
+[google_oauth]
+client_id = "TON_CLIENT_ID_GOOGLE"
+client_secret = "TON_CLIENT_SECRET_GOOGLE"
+redirect_uri = "http://localhost:8501"
+```
+
+Dans Google Cloud Console:
+
+- cree un projet;
+- configure l'ecran de consentement OAuth;
+- cree un client OAuth de type `Application Web`;
+- ajoute `http://localhost:8501` dans les URI de redirection autorises.
+
+L'application demande uniquement les scopes `openid email profile`. Elle ne demande pas l'acces aux emails Gmail.
 
 ## Lancement
 
@@ -99,6 +144,7 @@ http://localhost:8501
 - Le portefeuille, les transactions, les parametres, le cache de marche, les idees calculees et les plans mensuels sont stockes dans SQLite: `data/trading_app.sqlite3`.
 - L'application n'envoie pas tes donnees personnelles a Revolut.
 - Les seuls appels externes prevus servent a recuperer des prix de marche via `yfinance`.
+- La connexion Google sert uniquement a identifier le profil utilisateur local.
 - Si un ticker ne repond pas, l'application affiche une erreur non bloquante et continue avec les autres actifs.
 - Aucune API de passage d'ordre n'est presente.
 
@@ -113,6 +159,7 @@ Les tables creees automatiquement au premier lancement:
 - `market_data_cache`
 - `recommendations`
 - `monthly_plans`
+- `users`
 
 La table `recommendations` conserve son nom technique pour eviter une migration inutile, mais l'interface parle d'idees d'investissement et de candidats a analyser.
 
@@ -174,6 +221,8 @@ Chaque idee affiche:
 - Backtest: DCA ETF, 70/20/10, achat unique au depart.
 - Parametres: allocation cible, risque, cash, watchlist configurable.
 - Transactions: journal local des operations saisies manuellement.
+- Profil: compte Google, statistiques locales et montants personnels.
+- Wiki: explication simple des pages et notions principales.
 
 ## Ameliorations possibles
 

@@ -5,7 +5,7 @@ from datetime import date
 import streamlit as st
 
 from charts import allocation_gap_bar, allocation_pie
-from database import delete_position, get_assets, load_settings, upsert_asset, upsert_position
+from database import delete_position, get_assets, load_settings, save_settings, upsert_asset, upsert_position
 from portfolio import compute_portfolio_summary, sector_exposure
 from risk_management import generate_risk_alerts
 from utils.formatting import format_percent
@@ -19,6 +19,45 @@ summary = compute_portfolio_summary(settings)
 positions = summary["positions"]
 
 metrics_row(summary)
+
+with st.expander("Mettre a jour mes montants personnels", expanded=True):
+    st.caption(
+        "Ces montants restent locaux et servent au plan mensuel, aux alertes de cash et aux plafonds de concentration."
+    )
+    with st.form("quick_personal_amounts"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            cash_available = st.number_input(
+                "Montant disponible pour investir",
+                min_value=0.0,
+                value=float(settings.get("cash_available", 0)),
+                step=50.0,
+            )
+        with col2:
+            monthly_investment = st.number_input(
+                "Enveloppe mensuelle",
+                min_value=0.0,
+                value=float(settings.get("monthly_investment", 1000)),
+                step=50.0,
+            )
+        with col3:
+            capital_total = st.number_input(
+                "Capital total de reference",
+                min_value=0.0,
+                value=float(settings.get("capital_total", 0)),
+                step=100.0,
+            )
+        amount_submitted = st.form_submit_button("Sauvegarder ces montants")
+    if amount_submitted:
+        save_settings(
+            {
+                "cash_available": cash_available,
+                "monthly_investment": monthly_investment,
+                "capital_total": capital_total,
+            }
+        )
+        st.success("Montants personnels mis a jour.")
+        st.rerun()
 
 tab_summary, tab_edit, tab_delete = st.tabs(["Synthese", "Ajouter / modifier", "Supprimer"])
 
@@ -51,23 +90,49 @@ with tab_summary:
 
 with tab_edit:
     assets = get_assets(active_only=True)
-    choices = ["Saisie manuelle"] + assets["ticker"].tolist()
-    selected = st.selectbox("Ticker depuis la watchlist", choices)
+    existing_tickers = positions["ticker"].tolist() if not positions.empty else []
+    choices = ["Nouvelle position"] + existing_tickers + ["Saisie manuelle watchlist"]
+    selected_mode = st.selectbox("Mode", choices)
     asset_defaults = {}
-    if selected != "Saisie manuelle":
-        asset_defaults = assets[assets["ticker"] == selected].iloc[0].to_dict()
+    position_defaults = {}
+    if selected_mode in existing_tickers:
+        position_defaults = positions[positions["ticker"] == selected_mode].iloc[0].to_dict()
+        asset_match = assets[assets["ticker"] == selected_mode]
+        if not asset_match.empty:
+            asset_defaults = asset_match.iloc[0].to_dict()
+    elif selected_mode == "Saisie manuelle watchlist":
+        watchlist_choices = ["Choisir"] + assets["ticker"].tolist()
+        selected_watchlist = st.selectbox("Ticker depuis la watchlist", watchlist_choices)
+        if selected_watchlist != "Choisir":
+            asset_defaults = assets[assets["ticker"] == selected_watchlist].iloc[0].to_dict()
+
+    ticker_default = position_defaults.get("ticker", asset_defaults.get("ticker", ""))
+    name_default = position_defaults.get("name", asset_defaults.get("name", ""))
+    asset_type_default = position_defaults.get("asset_type", asset_defaults.get("asset_type", "ETF"))
+    currency_default = position_defaults.get("currency", asset_defaults.get("currency", settings.get("base_currency", "EUR")))
+    sector_default = position_defaults.get("sector", asset_defaults.get("sector", ""))
+    purchase_default = position_defaults.get("purchase_date") or date.today().isoformat()
+    try:
+        purchase_date_default = date.fromisoformat(str(purchase_default)[:10])
+    except ValueError:
+        purchase_date_default = date.today()
 
     with st.form("position_form"):
-        ticker = st.text_input("Ticker", value=asset_defaults.get("ticker", ""))
-        name = st.text_input("Nom de l'actif", value=asset_defaults.get("name", ""))
-        asset_type = st.selectbox("Type", ["ETF", "ACTION"], index=0 if asset_defaults.get("asset_type", "ETF") == "ETF" else 1)
-        quantity = st.number_input("Quantite detenue", min_value=0.0, value=0.0, step=0.01)
-        avg_buy_price = st.number_input("Prix moyen d'achat", min_value=0.0, value=0.0, step=0.01)
-        purchase_date = st.date_input("Date d'achat", value=date.today())
-        currency = st.text_input("Devise", value=asset_defaults.get("currency", settings.get("base_currency", "EUR")))
-        invested_amount = st.number_input("Montant investi", min_value=0.0, value=0.0, step=10.0)
-        fees = st.number_input("Frais eventuels", min_value=0.0, value=0.0, step=0.1)
-        sector = st.text_input("Secteur", value=asset_defaults.get("sector", ""))
+        ticker = st.text_input("Ticker", value=ticker_default)
+        name = st.text_input("Nom de l'actif", value=name_default)
+        asset_type = st.selectbox("Type", ["ETF", "ACTION"], index=0 if asset_type_default == "ETF" else 1)
+        quantity = st.number_input("Quantite detenue", min_value=0.0, value=float(position_defaults.get("quantity", 0.0)), step=0.01)
+        avg_buy_price = st.number_input("Prix moyen d'achat", min_value=0.0, value=float(position_defaults.get("avg_buy_price", 0.0)), step=0.01)
+        purchase_date = st.date_input("Date d'achat", value=purchase_date_default)
+        currency = st.text_input("Devise", value=currency_default)
+        invested_amount = st.number_input(
+            "Montant investi",
+            min_value=0.0,
+            value=float(position_defaults.get("invested_amount", 0.0)),
+            step=10.0,
+        )
+        fees = st.number_input("Frais eventuels", min_value=0.0, value=float(position_defaults.get("fees", 0.0)), step=0.1)
+        sector = st.text_input("Secteur", value=sector_default)
         submitted = st.form_submit_button("Enregistrer la position")
 
     if submitted:
