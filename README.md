@@ -13,11 +13,18 @@ Objectif:
 
 L'application ne presente jamais ses resultats comme des ordres obligatoires. La decision finale d'achat ou de vente reste manuelle et appartient uniquement a l'investisseur.
 
-## Authentification Google
+## Authentification
 
-L'application utilise une connexion Google OAuth locale. La premiere connexion avec un compte Google cree automatiquement un profil. Les connexions suivantes rouvrent le meme profil.
+L'application propose deux modes:
 
-Chaque profil Google possede ses propres donnees:
+- compte local avec email, informations personnelles et mot de passe;
+- connexion Google OAuth si elle est configuree.
+
+La creation d'un compte local se fait depuis la page de connexion. Le mot de passe est stocke sous forme de hash PBKDF2 avec sel, jamais en clair.
+
+La premiere connexion ou creation de compte cree automatiquement un profil. Les connexions suivantes rouvrent le meme profil.
+
+Chaque profil possede ses propres donnees:
 
 - parametres;
 - watchlist;
@@ -95,7 +102,9 @@ Sur cette machine, si `python` ouvre le raccourci Microsoft Store, utiliser:
 py -3 -m pip install -r requirements.txt
 ```
 
-## Configuration Google OAuth
+## Configuration Google OAuth optionnelle
+
+Cette etape est facultative si tu veux seulement utiliser les comptes locaux email/mot de passe.
 
 Copie le fichier d'exemple:
 
@@ -145,6 +154,7 @@ http://localhost:8501
 - L'application n'envoie pas tes donnees personnelles a Revolut.
 - Les seuls appels externes prevus servent a recuperer des prix de marche via `yfinance`.
 - La connexion Google sert uniquement a identifier le profil utilisateur local.
+- Les comptes locaux utilisent un mot de passe hache PBKDF2 avec sel.
 - Si un ticker ne repond pas, l'application affiche une erreur non bloquante et continue avec les autres actifs.
 - Aucune API de passage d'ordre n'est presente.
 
@@ -221,7 +231,7 @@ Chaque idee affiche:
 - Backtest: DCA ETF, 70/20/10, achat unique au depart.
 - Parametres: allocation cible, risque, cash, watchlist configurable.
 - Transactions: journal local des operations saisies manuellement.
-- Profil: compte Google, statistiques locales et montants personnels.
+- Profil: compte utilisateur, statistiques locales et montants personnels.
 - Wiki: explication simple des pages et notions principales.
 
 ## Ameliorations possibles

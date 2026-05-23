@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import os
+import re
 import secrets
 from urllib.parse import urlencode
 
 import requests
 import streamlit as st
 
-from database import initialize_user_defaults, upsert_google_user
+from database import authenticate_email_user, create_email_user, initialize_user_defaults, upsert_google_user
 
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def _hide_sidebar_before_auth() -> None:
@@ -129,6 +131,97 @@ def _handle_google_callback(config: dict[str, str]) -> None:
     st.rerun()
 
 
+def _start_user_session(user: dict[str, str]) -> None:
+    st.session_state["authenticated"] = True
+    st.session_state["user_id"] = user["id"]
+    st.session_state["user"] = user
+    st.session_state.pop("oauth_state", None)
+
+
+def _render_email_login() -> None:
+    with st.form("email_login_form"):
+        email = st.text_input("Email", placeholder="omar@example.com")
+        password = st.text_input("Mot de passe", type="password")
+        submitted = st.form_submit_button("Se connecter", use_container_width=True)
+
+    if not submitted:
+        return
+    user = authenticate_email_user(email, password)
+    if user is None:
+        st.error("Email ou mot de passe incorrect.")
+        return
+    _start_user_session(user)
+    st.success("Connexion reussie.")
+    st.rerun()
+
+
+def _render_account_creation() -> None:
+    with st.form("email_signup_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            first_name = st.text_input("Prenom")
+        with col2:
+            last_name = st.text_input("Nom")
+        email = st.text_input("Email de connexion", placeholder="omar@example.com")
+        password = st.text_input("Mot de passe", type="password")
+        password_confirm = st.text_input("Confirmer le mot de passe", type="password")
+        accepted = st.checkbox("Je comprends que mes donnees restent locales et que les idees ne sont pas des ordres.")
+        submitted = st.form_submit_button("Creer mon compte", use_container_width=True)
+
+    if not submitted:
+        return
+    if not first_name.strip() or not last_name.strip():
+        st.error("Prenom et nom sont obligatoires.")
+        return
+    if not EMAIL_PATTERN.match(email.strip()):
+        st.error("Email invalide.")
+        return
+    if len(password) < 8:
+        st.error("Le mot de passe doit contenir au moins 8 caracteres.")
+        return
+    if password != password_confirm:
+        st.error("Les deux mots de passe ne correspondent pas.")
+        return
+    if not accepted:
+        st.error("Confirme la regle d'utilisation avant de creer le compte.")
+        return
+
+    try:
+        user = create_email_user(email, password, first_name, last_name)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    _start_user_session(user)
+    st.success("Compte cree. Bienvenue.")
+    st.rerun()
+
+
+def _render_google_login(config: dict[str, str], missing_config: bool) -> None:
+    if missing_config:
+        st.warning("OAuth Google n'est pas encore configure pour cette application locale.")
+        with st.expander("Configurer Google OAuth"):
+            st.markdown(
+                """
+                Ajoute un fichier `.streamlit/secrets.toml` local avec:
+
+                ```toml
+                [google_oauth]
+                client_id = "TON_CLIENT_ID_GOOGLE"
+                client_secret = "TON_CLIENT_SECRET_GOOGLE"
+                redirect_uri = "http://localhost:8501"
+                ```
+
+                Dans Google Cloud Console, cree un client OAuth de type application Web et ajoute
+                `http://localhost:8501` dans les URI de redirection autorises.
+                """
+            )
+        return
+
+    login_url = _build_google_login_url(config)
+    st.link_button("Continuer avec Google", login_url, use_container_width=True)
+    st.caption("Aucun acces Gmail n'est demande: uniquement l'identite Google de base, l'email et le profil.")
+
+
 def require_login() -> None:
     if st.session_state.get("authenticated") and st.session_state.get("user_id"):
         return
@@ -137,8 +230,11 @@ def require_login() -> None:
     config = _oauth_config()
     missing_config = not config["client_id"] or not config["client_secret"]
 
-    st.title("Connexion Google")
-    st.caption("Connecte-toi avec ton compte Google pour ouvrir ton espace personnel.")
+    if not missing_config:
+        _handle_google_callback(config)
+
+    st.title("Connexion")
+    st.caption("Ouvre ton espace personnel ou cree un profil local.")
 
     left, middle, right = st.columns(3)
     left.metric("Local", "SQLite")
@@ -146,33 +242,17 @@ def require_login() -> None:
     right.metric("Ordres", "jamais")
 
     st.info(
-        "La premiere connexion cree automatiquement ton profil. "
-        "Chaque compte Google dispose de ses propres parametres, watchlist, portefeuille, transactions et plans mensuels."
+        "Chaque compte dispose de ses propres parametres, watchlist, portefeuille, transactions et plans mensuels. "
+        "Tu peux utiliser un compte local email/mot de passe ou Google si OAuth est configure."
     )
 
-    if missing_config:
-        st.warning("OAuth Google n'est pas encore configure pour cette application locale.")
-        st.markdown(
-            """
-            Ajoute un fichier `.streamlit/secrets.toml` local avec:
-
-            ```toml
-            [google_oauth]
-            client_id = "TON_CLIENT_ID_GOOGLE"
-            client_secret = "TON_CLIENT_SECRET_GOOGLE"
-            redirect_uri = "http://localhost:8501"
-            ```
-
-            Dans Google Cloud Console, cree un client OAuth de type application Web et ajoute
-            `http://localhost:8501` dans les URI de redirection autorises.
-            """
-        )
-        st.stop()
-
-    _handle_google_callback(config)
-    login_url = _build_google_login_url(config)
-    st.link_button("Continuer avec Google", login_url, use_container_width=True)
-    st.caption("Aucun acces Gmail n'est demande: uniquement l'identite Google de base, l'email et le profil.")
+    login_tab, signup_tab, google_tab = st.tabs(["Se connecter", "Creer un compte", "Google"])
+    with login_tab:
+        _render_email_login()
+    with signup_tab:
+        _render_account_creation()
+    with google_tab:
+        _render_google_login(config, missing_config)
     st.stop()
 
 

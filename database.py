@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
+import hashlib
+import hmac
+import secrets
 from datetime import datetime, timezone
 from typing import Any
 
@@ -66,6 +69,14 @@ def initialize_database() -> None:
                 picture_url TEXT,
                 created_at TEXT NOT NULL,
                 last_login_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS user_credentials (
+                user_id TEXT PRIMARY KEY,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
             );
 
             CREATE TABLE IF NOT EXISTS settings (
@@ -310,6 +321,118 @@ def ensure_local_user() -> None:
             (DEFAULT_PROFILE_ID, DEFAULT_PROFILE_ID, now, now),
         )
         conn.commit()
+
+
+def _normalise_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _email_user_id(email: str) -> str:
+    digest = hashlib.sha256(_normalise_email(email).encode("utf-8")).hexdigest()[:24]
+    return f"email:{digest}"
+
+
+def _hash_password(password: str, salt: str | None = None) -> str:
+    salt = salt or secrets.token_hex(16)
+    password_hash = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        210_000,
+    ).hex()
+    return f"pbkdf2_sha256$210000${salt}${password_hash}"
+
+
+def _verify_password(password: str, encoded_hash: str) -> bool:
+    try:
+        algorithm, iterations, salt, expected = encoded_hash.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        candidate = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt.encode("utf-8"),
+            int(iterations),
+        ).hex()
+        return hmac.compare_digest(candidate, expected)
+    except (ValueError, TypeError):
+        return False
+
+
+def email_account_exists(email: str) -> bool:
+    user_id = _email_user_id(email)
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM users WHERE id = ? AND provider = 'email'",
+            (user_id,),
+        ).fetchone()
+    return row is not None
+
+
+def create_email_user(email: str, password: str, first_name: str, last_name: str) -> dict[str, Any]:
+    normalised_email = _normalise_email(email)
+    user_id = _email_user_id(normalised_email)
+    now = utc_now()
+    full_name = " ".join(part.strip() for part in [first_name, last_name] if part.strip()) or normalised_email
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM users WHERE id = ? AND provider = 'email'",
+            (user_id,),
+        ).fetchone()
+        if existing:
+            raise ValueError("Un compte local existe deja avec cet email.")
+
+        conn.execute(
+            """
+            INSERT INTO users(id, provider, provider_subject, email, name, picture_url, created_at, last_login_at)
+            VALUES (?, 'email', ?, ?, ?, '', ?, ?)
+            """,
+            (user_id, normalised_email, normalised_email, full_name, now, now),
+        )
+        conn.execute(
+            """
+            INSERT INTO user_credentials(user_id, password_hash, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, _hash_password(password), now, now),
+        )
+        conn.commit()
+    initialize_user_defaults(user_id)
+    save_settings(
+        {
+            "personal_first_name": first_name.strip(),
+            "personal_last_name": last_name.strip(),
+            "personal_email": normalised_email,
+        },
+        user_id=user_id,
+    )
+    return get_user(user_id) or {"id": user_id, "email": normalised_email, "name": full_name}
+
+
+def authenticate_email_user(email: str, password: str) -> dict[str, Any] | None:
+    normalised_email = _normalise_email(email)
+    user_id = _email_user_id(normalised_email)
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT u.*, c.password_hash
+            FROM users u
+            JOIN user_credentials c ON c.user_id = u.id
+            WHERE u.id = ? AND u.provider = 'email'
+            """,
+            (user_id,),
+        ).fetchone()
+        if row is None or not _verify_password(password, row["password_hash"]):
+            return None
+        conn.execute(
+            "UPDATE users SET last_login_at = ? WHERE id = ?",
+            (utc_now(), user_id),
+        )
+        conn.commit()
+
+    user = get_user(user_id)
+    initialize_user_defaults(user_id)
+    return user
 
 
 def upsert_google_user(profile: dict[str, Any]) -> dict[str, Any]:
