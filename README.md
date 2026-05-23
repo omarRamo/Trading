@@ -62,6 +62,7 @@ Avant authentification, le menu lateral Streamlit est masque pour eviter d'expos
 ```text
 Trading/
 |-- app.py
+|-- streamlit_app.py
 |-- config.py
 |-- database.py
 |-- market_data.py
@@ -157,6 +158,22 @@ L'application sera disponible localement, en general sur:
 ```text
 http://localhost:8501
 ```
+
+## Deploiement Streamlit Community Cloud
+
+Le fichier d'entree pour Streamlit Cloud est:
+
+```text
+streamlit_app.py
+```
+
+Dans Streamlit Community Cloud:
+
+- Repository: `omarRamo/Trading`
+- Branch: `main`
+- Main file path: `streamlit_app.py`
+
+Le fichier `streamlit_app.py` importe `app.py`, donc le lancement local et le deploiement cloud utilisent le meme code.
 
 ## Developper depuis un telephone
 

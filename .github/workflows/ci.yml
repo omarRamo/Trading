@@ -30,6 +30,9 @@ jobs:
       - name: Compile Python files
         run: python -m compileall .
 
+      - name: Check Streamlit Cloud entrypoint
+        run: test -f streamlit_app.py
+
       - name: Initialize local database and demo account
         run: |
           python - <<'PY'
@@ -42,4 +45,3 @@ jobs:
           assert len(get_positions(user_id=demo["id"])) > 0
           print("Demo account and database initialization OK")
           PY
-
