@@ -14,6 +14,9 @@ import pandas as pd
 from config import DB_PATH, DEFAULT_SETTINGS, DEFAULT_WATCHLIST, DEMO_POSITIONS
 
 DEFAULT_PROFILE_ID = "local_legacy"
+DEMO_USERNAME = "omar"
+DEMO_PASSWORD = "admin"
+DEMO_USER_ID = f"demo:{DEMO_USERNAME}"
 
 
 def utc_now() -> str:
@@ -190,6 +193,7 @@ def initialize_database() -> None:
         conn.commit()
     migrate_user_scoped_tables()
     ensure_local_user()
+    ensure_demo_user()
     seed_default_settings()
     seed_default_watchlist()
 
@@ -323,6 +327,44 @@ def ensure_local_user() -> None:
         conn.commit()
 
 
+def ensure_demo_user() -> None:
+    now = utc_now()
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT created_at, last_login_at FROM users WHERE id = ?",
+            (DEMO_USER_ID,),
+        ).fetchone()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO users(
+                id, provider, provider_subject, email, name, picture_url, created_at, last_login_at
+            )
+            VALUES (?, 'demo', ?, 'omar@demo.local', 'Omar Demo', '', ?, ?)
+            """,
+            (
+                DEMO_USER_ID,
+                DEMO_USERNAME,
+                existing["created_at"] if existing else now,
+                existing["last_login_at"] if existing else now,
+            ),
+        )
+        credential = conn.execute(
+            "SELECT user_id FROM user_credentials WHERE user_id = ?",
+            (DEMO_USER_ID,),
+        ).fetchone()
+        if credential is None:
+            conn.execute(
+                """
+                INSERT INTO user_credentials(user_id, password_hash, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (DEMO_USER_ID, _hash_password(DEMO_PASSWORD), now, now),
+            )
+        conn.commit()
+    initialize_user_defaults(DEMO_USER_ID)
+    seed_demo_portfolio(overwrite=False, user_id=DEMO_USER_ID)
+
+
 def _normalise_email(email: str) -> str:
     return email.strip().lower()
 
@@ -330,6 +372,15 @@ def _normalise_email(email: str) -> str:
 def _email_user_id(email: str) -> str:
     digest = hashlib.sha256(_normalise_email(email).encode("utf-8")).hexdigest()[:24]
     return f"email:{digest}"
+
+
+def _credential_user_id(identifier: str) -> str:
+    clean = identifier.strip().lower()
+    if clean == DEMO_USERNAME:
+        return DEMO_USER_ID
+    if "@" in clean:
+        return _email_user_id(clean)
+    return f"username:{hashlib.sha256(clean.encode('utf-8')).hexdigest()[:24]}"
 
 
 def _hash_password(password: str, salt: str | None = None) -> str:
@@ -410,15 +461,14 @@ def create_email_user(email: str, password: str, first_name: str, last_name: str
 
 
 def authenticate_email_user(email: str, password: str) -> dict[str, Any] | None:
-    normalised_email = _normalise_email(email)
-    user_id = _email_user_id(normalised_email)
+    user_id = _credential_user_id(email)
     with get_connection() as conn:
         row = conn.execute(
             """
             SELECT u.*, c.password_hash
             FROM users u
             JOIN user_credentials c ON c.user_id = u.id
-            WHERE u.id = ? AND u.provider = 'email'
+            WHERE u.id = ? AND u.provider IN ('email', 'demo')
             """,
             (user_id,),
         ).fetchone()

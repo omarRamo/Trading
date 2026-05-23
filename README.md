@@ -20,6 +20,11 @@ L'application propose deux modes:
 - compte local avec email, informations personnelles et mot de passe;
 - connexion Google OAuth si elle est configuree.
 
+Compte demo disponible par defaut:
+
+- identifiant: `omar`
+- mot de passe: `admin`
+
 La creation d'un compte local se fait depuis la page de connexion. Le mot de passe est stocke sous forme de hash PBKDF2 avec sel, jamais en clair.
 
 La premiere connexion ou creation de compte cree automatiquement un profil. Les connexions suivantes rouvrent le meme profil.
@@ -67,6 +72,11 @@ Trading/
 |-- charts.py
 |-- requirements.txt
 |-- README.md
+|-- .github/
+|   `-- workflows/
+|       `-- ci.yml
+|-- .devcontainer/
+|   `-- devcontainer.json
 |-- .streamlit/
 |   `-- secrets.toml.example
 |-- data/
@@ -148,6 +158,42 @@ L'application sera disponible localement, en general sur:
 http://localhost:8501
 ```
 
+## Developper depuis un telephone
+
+Le repo contient une configuration GitHub Codespaces:
+
+- `.devcontainer/devcontainer.json`
+- port Streamlit `8501` transfere automatiquement
+- dependances installees avec `requirements.txt`
+
+Depuis un telephone:
+
+1. Ouvre le depot GitHub.
+2. Lance un Codespace depuis `Code > Codespaces`.
+3. Dans le terminal du Codespace, execute:
+
+```bash
+python -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+```
+
+4. Ouvre le port `8501` propose par Codespaces dans le navigateur.
+
+Le compte demo `omar` / `admin` permet de tester l'application sans configurer Google OAuth.
+
+## GitHub Actions
+
+Le workflow `.github/workflows/ci.yml` se lance a chaque push, pull request ou manuellement.
+
+Il verifie:
+
+- installation des dependances;
+- compilation Python;
+- initialisation SQLite;
+- presence du compte demo `omar` / `admin`;
+- presence de la watchlist et du portefeuille fictif demo.
+
+GitHub Actions sert ici a valider l'application. Le developpement interactif depuis telephone se fait plutot avec GitHub Codespaces.
+
 ## Donnees et confidentialite
 
 - Le portefeuille, les transactions, les parametres, le cache de marche, les idees calculees et les plans mensuels sont stockes dans SQLite: `data/trading_app.sqlite3`.
@@ -155,6 +201,7 @@ http://localhost:8501
 - Les seuls appels externes prevus servent a recuperer des prix de marche via `yfinance`.
 - La connexion Google sert uniquement a identifier le profil utilisateur local.
 - Les comptes locaux utilisent un mot de passe hache PBKDF2 avec sel.
+- Le compte demo `omar` / `admin` est prevu pour le developpement et les tests.
 - Si un ticker ne repond pas, l'application affiche une erreur non bloquante et continue avec les autres actifs.
 - Aucune API de passage d'ordre n'est presente.
 

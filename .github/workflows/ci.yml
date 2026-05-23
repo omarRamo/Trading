@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate Streamlit app
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Compile Python files
+        run: python -m compileall .
+
+      - name: Initialize local database and demo account
+        run: |
+          python - <<'PY'
+          from database import initialize_database, authenticate_email_user, get_assets, get_positions
+
+          initialize_database()
+          demo = authenticate_email_user("omar", "admin")
+          assert demo is not None, "Demo account omar/admin is not available"
+          assert len(get_assets(active_only=False, user_id=demo["id"])) > 0
+          assert len(get_positions(user_id=demo["id"])) > 0
+          print("Demo account and database initialization OK")
+          PY
+

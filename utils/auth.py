@@ -140,7 +140,7 @@ def _start_user_session(user: dict[str, str]) -> None:
 
 def _render_email_login() -> None:
     with st.form("email_login_form"):
-        email = st.text_input("Email", placeholder="omar@example.com")
+        email = st.text_input("Email ou identifiant", placeholder="omar ou omar@example.com")
         password = st.text_input("Mot de passe", type="password")
         submitted = st.form_submit_button("Se connecter", use_container_width=True)
 
@@ -148,7 +148,7 @@ def _render_email_login() -> None:
         return
     user = authenticate_email_user(email, password)
     if user is None:
-        st.error("Email ou mot de passe incorrect.")
+        st.error("Identifiant ou mot de passe incorrect.")
         return
     _start_user_session(user)
     st.success("Connexion reussie.")
@@ -245,6 +245,7 @@ def require_login() -> None:
         "Chaque compte dispose de ses propres parametres, watchlist, portefeuille, transactions et plans mensuels. "
         "Tu peux utiliser un compte local email/mot de passe ou Google si OAuth est configure."
     )
+    st.caption("Compte demo: identifiant `omar`, mot de passe `admin`.")
 
     login_tab, signup_tab, google_tab = st.tabs(["Se connecter", "Creer un compte", "Google"])
     with login_tab:
