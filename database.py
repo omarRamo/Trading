@@ -176,6 +176,30 @@ def initialize_database() -> None:
                 created_at TEXT NOT NULL
             );
 
+
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                alert_type TEXT NOT NULL,
+                threshold REAL,
+                is_active INTEGER DEFAULT 1,
+                triggered_at TEXT,
+                created_at TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS dividends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                amount_per_share REAL,
+                total_amount REAL,
+                ex_date TEXT,
+                pay_date TEXT,
+                currency TEXT,
+                source TEXT DEFAULT 'manual'
+            );
+
             CREATE TABLE IF NOT EXISTS monthly_plans (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL DEFAULT 'local_legacy',
@@ -195,6 +219,17 @@ def initialize_database() -> None:
     ensure_local_user()
     ensure_demo_user()
     seed_default_settings()
+    with get_connection() as conn:
+        for col_sql in [
+            "ALTER TABLE portfolio_positions ADD COLUMN target_price REAL",
+            "ALTER TABLE portfolio_positions ADD COLUMN stop_loss REAL",
+            "ALTER TABLE portfolio_positions ADD COLUMN notes TEXT",
+        ]:
+            try:
+                conn.execute(col_sql)
+            except sqlite3.OperationalError:
+                pass
+        conn.commit()
     seed_default_watchlist()
 
 
@@ -1097,3 +1132,30 @@ def list_users() -> pd.DataFrame:
             "SELECT id, provider, email, name, created_at, last_login_at FROM users ORDER BY last_login_at DESC",
             conn,
         )
+
+
+def list_price_alerts(active_only: bool = True, user_id: str | None = None) -> pd.DataFrame:
+    user_id = user_id or get_current_user_id()
+    sql = "SELECT * FROM price_alerts WHERE user_id = ?"
+    if active_only:
+        sql += " AND is_active = 1"
+    with get_connection() as conn:
+        return pd.read_sql_query(sql + " ORDER BY created_at DESC", conn, params=(user_id,))
+
+def create_price_alert(ticker: str, alert_type: str, threshold: float | None = None, user_id: str | None = None) -> None:
+    user_id = user_id or get_current_user_id()
+    with get_connection() as conn:
+        conn.execute("INSERT INTO price_alerts(user_id,ticker,alert_type,threshold,created_at) VALUES (?,?,?,?,?)", (user_id, ticker.upper(), alert_type, threshold, utc_now()))
+        conn.commit()
+
+def disable_price_alert(alert_id: int, user_id: str | None = None) -> None:
+    user_id = user_id or get_current_user_id()
+    with get_connection() as conn:
+        conn.execute("UPDATE price_alerts SET is_active = 0 WHERE id = ? AND user_id = ?", (alert_id, user_id))
+        conn.commit()
+
+def mark_price_alert_triggered(alert_id: int, user_id: str | None = None) -> None:
+    user_id = user_id or get_current_user_id()
+    with get_connection() as conn:
+        conn.execute("UPDATE price_alerts SET triggered_at = ? WHERE id = ? AND user_id = ?", (utc_now(), alert_id, user_id))
+        conn.commit()

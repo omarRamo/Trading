@@ -45,3 +45,8 @@ jobs:
           assert len(get_positions(user_id=demo["id"])) > 0
           print("Demo account and database initialization OK")
           PY
+
+      - name: Run tests
+        run: |
+          pip install pytest pytest-cov pytest-mock reportlab
+          pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=70
