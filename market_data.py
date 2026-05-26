@@ -213,3 +213,54 @@ def history_to_frame(history: list[dict[str, Any]] | pd.DataFrame) -> pd.DataFra
         if col in frame.columns:
             frame[col] = pd.to_numeric(frame[col], errors="coerce")
     return frame.sort_values("date")
+
+from database import list_price_alerts, mark_price_alert_triggered, upsert_market_cache
+
+
+def get_fx_rate(from_currency: str, to_currency: str) -> float:
+    from_currency = (from_currency or "EUR").upper()
+    to_currency = (to_currency or "EUR").upper()
+    if from_currency == to_currency:
+        return 1.0
+    pair = f"{from_currency}{to_currency}=X"
+    data = fetch_market_data(pair, period="6mo")
+    return float(data.get("price") or 1.0)
+
+
+def normalize_to_eur(value: float, currency: str) -> float:
+    return float(value) * get_fx_rate(currency, "EUR")
+
+
+def check_price_alerts(user_id: str, market_data: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    alerts_df = list_price_alerts(active_only=True, user_id=user_id)
+    triggered = []
+    for _, a in alerts_df.iterrows():
+        ticker = a["ticker"]
+        data = market_data.get(ticker) or fetch_market_data(ticker)
+        price = data.get("price")
+        ma200 = data.get("ma200")
+        rsi = data.get("rsi14")
+        cond = False
+        if a["alert_type"] == "price_below" and price is not None and a["threshold"] is not None:
+            cond = price <= a["threshold"]
+        elif a["alert_type"] == "price_above" and price is not None and a["threshold"] is not None:
+            cond = price >= a["threshold"]
+        elif a["alert_type"] == "ma200_cross" and price is not None and ma200 is not None:
+            cond = price >= ma200
+        elif a["alert_type"] == "rsi_oversold" and rsi is not None:
+            cond = rsi < 30
+        if cond:
+            mark_price_alert_triggered(int(a["id"]), user_id=user_id)
+            triggered.append({"ticker": ticker, "type": a["alert_type"], "price": price, "threshold": a["threshold"]})
+    return triggered
+
+
+def fetch_dividends(ticker: str) -> pd.DataFrame:
+    import yfinance as yf
+
+    series = yf.Ticker(ticker).dividends
+    if series is None or len(series) == 0:
+        return pd.DataFrame(columns=["date", "amount_per_share"])
+    df = series.reset_index()
+    df.columns = ["date", "amount_per_share"]
+    return df
