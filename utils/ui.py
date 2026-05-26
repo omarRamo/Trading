@@ -11,6 +11,7 @@ from database import initialize_database, load_settings
 from market_sync import maybe_auto_sync_market_data, sync_market_data
 from utils.auth import render_logout_control, require_login
 from utils.formatting import format_currency, format_percent
+from utils.badges import signal_badge
 
 
 def bootstrap_page(title: str) -> None:
@@ -49,26 +50,33 @@ def _render_market_sync_sidebar(title: str) -> None:
 
 
 def render_alerts(alerts: list[dict[str, str]]) -> None:
-    for alert in alerts:
-        severity = alert.get("severity", "info")
+    priority = {"danger": 3, "warning": 2, "info": 1, "success": 1}
+    critical_keys = ("concentration", "cash")
+    important_keys = ("rsi", "volatil")
+    ranked = sorted(alerts, key=lambda a: priority.get(a.get("severity", "info"), 0), reverse=True)
+    for alert in ranked:
         text = f"**{alert.get('title', 'Alerte')}**  \n{alert.get('message', '')}"
-        if severity == "danger":
-            st.error(text)
-        elif severity == "warning":
-            st.warning(text)
-        elif severity == "success":
-            st.success(text)
+        content = f"{text}"
+        title = (alert.get("title", "") + " " + alert.get("message", "")).lower()
+        if any(k in title for k in critical_keys):
+            st.error(content, icon="🚨")
+        elif any(k in title for k in important_keys) or alert.get("severity") == "warning":
+            st.warning(content, icon="⚠️")
         else:
-            st.info(text)
+            st.info(content, icon="ℹ️")
 
 
-def metrics_row(summary: dict[str, Any]) -> None:
+def metrics_row(summary: dict[str, Any], monthly_available: float | None = None) -> None:
     currency = summary.get("currency", "EUR")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Valeur totale", format_currency(summary["total_value"], currency))
-    col2.metric("Cash disponible", format_currency(summary["cash"], currency))
-    col3.metric("P/L latent", format_currency(summary["unrealized_pnl"], currency), format_percent(summary["unrealized_pnl_pct"]))
-    col4.metric("Valeur investie", format_currency(summary["positions_value"], currency))
+    pnl = summary.get("unrealized_pnl", 0.0)
+    worst_gap = max((abs(v) for v in summary.get("allocation_gaps", {}).values()), default=0.0)
+    worst_bucket = max(summary.get("allocation_gaps", {}).items(), key=lambda x: abs(x[1]), default=("N/A", 0.0))
+    badge = "🔴" if worst_gap > 0.10 else "🟢"
+    cards = st.columns(4)
+    cards[0].metric("Valeur totale", format_currency(summary["total_value"], currency), delta=("📈" if pnl > 0 else "📉"))
+    cards[1].metric("P/L latent total", format_currency(pnl, currency), format_percent(summary.get("unrealized_pnl_pct", 0.0)))
+    cards[2].metric("Allocation la + déséquilibrée", f"{badge} {worst_bucket[0]}", format_percent(worst_bucket[1]))
+    cards[3].metric("Enveloppe mensuelle dispo", format_currency(monthly_available if monthly_available is not None else summary.get("cash", 0.0), currency))
 
 
 def investment_ideas_frame(ideas: list[dict[str, Any]], include_plan_amount: bool = False) -> pd.DataFrame:
@@ -79,7 +87,7 @@ def investment_ideas_frame(ideas: list[dict[str, Any]], include_plan_amount: boo
             "Nom": idea.get("name", ""),
             "Type d'actif": idea["asset_type"],
             "Score de qualité": idea["score"],
-            "Signal pédagogique": idea.get("prudence_level", ""),
+            "Signal pédagogique": signal_badge(idea.get("prudence_level", "")),
             "Niveau de risque": idea.get("risk_level", "inconnu"),
             "Montant maximum théorique": idea.get("max_theoretical_amount", 0.0),
             "Raison de l'idée": idea.get("idea_reason") or " | ".join(idea.get("reasons", [])),

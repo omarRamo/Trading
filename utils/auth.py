@@ -146,10 +146,16 @@ def _render_email_login() -> None:
 
     if not submitted:
         return
+    attempts = int(st.session_state.get("login_attempts", 0))
+    if attempts >= 5:
+        st.error("Trop de tentatives de connexion (5 max). Recharge la page.")
+        return
     user = authenticate_email_user(email, password)
     if user is None:
+        st.session_state["login_attempts"] = attempts + 1
         st.error("Identifiant ou mot de passe incorrect.")
         return
+    st.session_state["login_attempts"] = 0
     _start_user_session(user)
     st.success("Connexion reussie.")
     st.rerun()

@@ -45,3 +45,12 @@ jobs:
           assert len(get_positions(user_id=demo["id"])) > 0
           print("Demo account and database initialization OK")
           PY
+
+      - name: Run tests
+        run: |
+          pip install pytest pytest-cov pytest-mock reportlab
+          if [ -d tests ] && [ "$(find tests -type f -name "test_*.py" | wc -l)" -gt 0 ]; then
+            pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=70
+          else
+            echo "No tests/ directory or test files found yet; skipping pytest step."
+          fi
