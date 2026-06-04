@@ -9,6 +9,7 @@ CACHE_TTL_HOURS = 6
 DEFAULT_CURRENCY = "EUR"
 
 DEFAULT_SETTINGS = {
+    "app_language": "en",
     "capital_total": 12000.0,
     "cash_available": 1200.0,
     "monthly_investment": 1000.0,

@@ -9,6 +9,7 @@ import requests
 import streamlit as st
 
 from database import authenticate_email_user, create_email_user, initialize_user_defaults, upsert_google_user
+from utils.i18n import SUPPORTED_LANGUAGES, current_language, set_language, t
 
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -139,10 +140,11 @@ def _start_user_session(user: dict[str, str]) -> None:
 
 
 def _render_email_login() -> None:
+    language = current_language({})
     with st.form("email_login_form"):
-        email = st.text_input("Email ou identifiant", placeholder="omar ou omar@example.com")
-        password = st.text_input("Mot de passe", type="password")
-        submitted = st.form_submit_button("Se connecter", use_container_width=True)
+        email = st.text_input(t("email_or_username", language), placeholder="omar or omar@example.com")
+        password = st.text_input(t("password", language), type="password")
+        submitted = st.form_submit_button(t("login", language), use_container_width=True)
 
     if not submitted:
         return
@@ -162,17 +164,18 @@ def _render_email_login() -> None:
 
 
 def _render_account_creation() -> None:
+    language = current_language({})
     with st.form("email_signup_form"):
         col1, col2 = st.columns(2)
         with col1:
-            first_name = st.text_input("Prenom")
+            first_name = st.text_input(t("first_name", language))
         with col2:
-            last_name = st.text_input("Nom")
-        email = st.text_input("Email de connexion", placeholder="omar@example.com")
-        password = st.text_input("Mot de passe", type="password")
-        password_confirm = st.text_input("Confirmer le mot de passe", type="password")
+            last_name = st.text_input(t("last_name", language))
+        email = st.text_input(t("email_or_username", language), placeholder="omar@example.com")
+        password = st.text_input(t("password", language), type="password")
+        password_confirm = st.text_input(t("confirm_password", language), type="password")
         accepted = st.checkbox("Je comprends que mes donnees restent locales et que les idees ne sont pas des ordres.")
-        submitted = st.form_submit_button("Creer mon compte", use_container_width=True)
+        submitted = st.form_submit_button(t("create_account", language), use_container_width=True)
 
     if not submitted:
         return
@@ -203,6 +206,7 @@ def _render_account_creation() -> None:
 
 
 def _render_google_login(config: dict[str, str], missing_config: bool) -> None:
+    language = current_language({})
     if missing_config:
         st.warning("OAuth Google n'est pas encore configure pour cette application locale.")
         with st.expander("Configurer Google OAuth"):
@@ -224,7 +228,7 @@ def _render_google_login(config: dict[str, str], missing_config: bool) -> None:
         return
 
     login_url = _build_google_login_url(config)
-    st.link_button("Continuer avec Google", login_url, use_container_width=True)
+    st.link_button(f"{t('login', language)} Google", login_url, use_container_width=True)
     st.caption("Aucun acces Gmail n'est demande: uniquement l'identite Google de base, l'email et le profil.")
 
 
@@ -236,16 +240,19 @@ def require_login() -> None:
     config = _oauth_config()
     missing_config = not config["client_id"] or not config["client_secret"]
 
+    _render_login_language_selector()
+    language = current_language({})
+
     if not missing_config:
         _handle_google_callback(config)
 
-    st.title("Connexion")
-    st.caption("Ouvre ton espace personnel ou cree un profil local.")
+    st.title(t("sign_in", language))
+    st.caption(t("open_workspace", language))
 
     left, middle, right = st.columns(3)
     left.metric("Local", "SQLite")
-    middle.metric("Profils", "isoles")
-    right.metric("Ordres", "jamais")
+    middle.metric(t("profiles", language), t("isolated", language))
+    right.metric(t("orders", language), t("never_label", language))
 
     st.info(
         "Chaque compte dispose de ses propres parametres, watchlist, portefeuille, transactions et plans mensuels. "
@@ -253,7 +260,7 @@ def require_login() -> None:
     )
     st.caption("Compte demo: identifiant `omar`, mot de passe `admin`.")
 
-    login_tab, signup_tab, google_tab = st.tabs(["Se connecter", "Creer un compte", "Google"])
+    login_tab, signup_tab, google_tab = st.tabs([t("login", language), t("create_account", language), t("google", language)])
     with login_tab:
         _render_email_login()
     with signup_tab:
@@ -264,12 +271,29 @@ def require_login() -> None:
 
 
 def render_logout_control() -> None:
+    language = current_language({})
     user = st.session_state.get("user", {})
     picture = user.get("picture_url") or user.get("picture")
     if picture:
         st.sidebar.image(picture, width=48)
-    st.sidebar.caption(f"Connecte: {user.get('email', 'Compte Google')}")
-    if st.sidebar.button("Se deconnecter"):
+    st.sidebar.caption(t("connected_as", language, email=user.get("email", "Google account")))
+    if st.sidebar.button(t("sign_out", language)):
         for key in ["authenticated", "user_id", "user", "oauth_state"]:
             st.session_state.pop(key, None)
+        st.rerun()
+
+
+def _render_login_language_selector() -> None:
+    language = current_language({})
+    options = list(SUPPORTED_LANGUAGES.keys())
+    idx = options.index(language) if language in options else 0
+    selected = st.selectbox(
+        t("language", language),
+        options,
+        index=idx,
+        format_func=lambda code: SUPPORTED_LANGUAGES.get(code, code),
+        key="login_language_selector",
+    )
+    if selected != language:
+        set_language(selected)
         st.rerun()

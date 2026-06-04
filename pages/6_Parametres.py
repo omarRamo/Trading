@@ -13,6 +13,7 @@ from database import (
     set_asset_active,
     upsert_asset,
 )
+from utils.i18n import SUPPORTED_LANGUAGES, current_language, set_language
 from utils.ui import bootstrap_page
 
 
@@ -22,6 +23,14 @@ settings = load_settings()
 
 st.subheader("Configuration investisseur")
 with st.form("settings_form"):
+    language = current_language(settings)
+    language_options = list(SUPPORTED_LANGUAGES.keys())
+    app_language = st.selectbox(
+        "App language / Langue de l'app",
+        language_options,
+        index=language_options.index(language) if language in language_options else 0,
+        format_func=lambda code: SUPPORTED_LANGUAGES.get(code, code),
+    )
     capital_total = st.number_input("Capital total actuel", min_value=0.0, value=float(settings.get("capital_total", 0)), step=100.0)
     cash_available = st.number_input("Cash disponible", min_value=0.0, value=float(settings.get("cash_available", 0)), step=50.0)
     monthly_investment = st.number_input("Montant mensuel a investir", min_value=0.0, value=float(settings.get("monthly_investment", 1000)), step=50.0)
@@ -73,6 +82,7 @@ if submitted:
         save_settings(
             {
                 "capital_total": capital_total,
+                "app_language": app_language,
                 "cash_available": cash_available,
                 "monthly_investment": monthly_investment,
                 "target_allocation_etf": etf_pct / 100,
@@ -90,6 +100,7 @@ if submitted:
                 "auto_sync_interval_hours": sync_interval,
             }
         )
+        set_language(app_language)
         st.success("Parametres sauvegardes.")
         st.rerun()
 
