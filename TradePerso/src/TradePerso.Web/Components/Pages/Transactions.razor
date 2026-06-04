@@ -1,0 +1,103 @@
+@page "/transactions"
+@attribute [Authorize]
+@inject Application.Abstractions.Repositories.ITransactionRepository Tx
+@inject CurrentUserAccessor CurrentUser
+@inject ISnackbar Snackbar
+
+<PageTitle>Transactions - TradePerso</PageTitle>
+
+<MudText Typo="Typo.h4" Class="page-title">Transactions</MudText>
+
+<MudPaper Class="pa-4 metric-card mb-3">
+    <MudGrid Spacing="2">
+        <MudItem xs="6" sm="3"><MudTextField @bind-Value="_form.Ticker" Label="Ticker" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="3">
+            <MudSelect T="TransactionType" @bind-Value="_form.TransactionType" Label="Type" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var t in Enum.GetValues<TransactionType>())
+                { <MudSelectItem Value="t">@t</MudSelectItem> }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" sm="2"><MudNumericField T="decimal" @bind-Value="_form.Quantity" Label="Qty" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="2"><MudNumericField T="decimal" @bind-Value="_form.Price" Label="Price" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="2"><MudDatePicker @bind-Date="_form.Date" Label="Date" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddAsync">Add transaction</MudButton></MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_items is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudPaper Class="pa-2 metric-card">
+        <MudTable Items="_items" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Date</MudTh><MudTh>Ticker</MudTh><MudTh>Type</MudTh><MudTh>Qty</MudTh><MudTh>Price</MudTh><MudTh>Amount</MudTh><MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.TransactionDate.ToString("yyyy-MM-dd")</MudTd>
+                <MudTd>@context.Ticker</MudTd>
+                <MudTd>@context.TransactionType</MudTd>
+                <MudTd>@context.Quantity.ToString("0.####")</MudTd>
+                <MudTd>@context.Price.ToString("N2")</MudTd>
+                <MudTd>@context.Amount.ToString("N2")</MudTd>
+                <MudTd><MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteAsync(context.Id))" /></MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private string? _userId;
+    private IReadOnlyList<Domain.Entities.Transaction>? _items;
+    private TxForm _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = await CurrentUser.GetUserIdAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_userId is null) return;
+        _items = await Tx.ListAsync(_userId);
+    }
+
+    private async Task AddAsync()
+    {
+        if (_userId is null || string.IsNullOrWhiteSpace(_form.Ticker)) return;
+        await Tx.AddAsync(new Domain.Entities.Transaction
+        {
+            UserId = _userId,
+            Ticker = _form.Ticker.Trim().ToUpperInvariant(),
+            AssetName = _form.Ticker,
+            AssetType = AssetType.Stock,
+            TransactionType = _form.TransactionType,
+            Quantity = _form.Quantity,
+            Price = _form.Price,
+            Amount = _form.Quantity * _form.Price,
+            TransactionDate = (_form.Date ?? DateTime.UtcNow).Date,
+        });
+        Snackbar.Add("Transaction added", MudBlazor.Severity.Success);
+        _form = new TxForm();
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        if (_userId is null) return;
+        await Tx.DeleteAsync(_userId, id);
+        await LoadAsync();
+    }
+
+    private class TxForm
+    {
+        public string? Ticker { get; set; }
+        public TransactionType TransactionType { get; set; } = TransactionType.Buy;
+        public decimal Quantity { get; set; }
+        public decimal Price { get; set; }
+        public DateTime? Date { get; set; } = DateTime.UtcNow;
+    }
+}

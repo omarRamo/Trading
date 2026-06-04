@@ -1,0 +1,63 @@
+@page "/monthly-plan"
+@attribute [Authorize]
+@inject IMonthlyPlanService Plan
+@inject CurrentUserAccessor CurrentUser
+
+<PageTitle>Monthly plan - TradePerso</PageTitle>
+
+<MudText Typo="Typo.h4" Class="page-title">Monthly plan</MudText>
+
+@if (_plan is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4 metric-card">
+                <MudText Typo="Typo.overline">Monthly budget</MudText>
+                <MudText Typo="Typo.h5" Class="kpi">@_plan.MonthlyAmount.ToString("N2")</MudText>
+                <MudDivider Class="my-3" />
+                <MudText>ETF: @_plan.EtfBudget.ToString("N2")</MudText>
+                <MudText>Stocks: @_plan.StockBudget.ToString("N2")</MudText>
+                <MudText>Cash: @_plan.CashBudget.ToString("N2")</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-2 metric-card">
+                <MudTable Items="_plan.Items" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>Bucket</MudTh><MudTh>Ticker</MudTh><MudTh>Name</MudTh>
+                        <MudTh>Amount</MudTh><MudTh>Shares</MudTh><MudTh>Score</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Bucket">@context.Bucket</MudTd>
+                        <MudTd DataLabel="Ticker">@context.Ticker</MudTd>
+                        <MudTd DataLabel="Name">@context.Name</MudTd>
+                        <MudTd DataLabel="Amount">@context.Amount.ToString("N2")</MudTd>
+                        <MudTd DataLabel="Shares">@(context.EstimatedShares?.ToString("0.####") ?? "-")</MudTd>
+                        <MudTd DataLabel="Score">@context.Score.ToString("0.0")</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+            @if (_plan.Warnings.Count > 0)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mt-3" Dense="true">
+                    @string.Join(" ", _plan.Warnings)
+                </MudAlert>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private MonthlyPlanResultDto? _plan;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var userId = await CurrentUser.GetUserIdAsync();
+        if (userId is null) return;
+        _plan = await Plan.BuildAsync(userId);
+    }
+}

@@ -1,0 +1,100 @@
+@page "/journal"
+@attribute [Authorize]
+@inject Application.Abstractions.Repositories.ITradeJournalRepository JournalRepo
+@inject IPositionSizingService Sizer
+@inject Application.Abstractions.Repositories.IUserSettingsRepository SettingsRepo
+@inject CurrentUserAccessor CurrentUser
+@inject ISnackbar Snackbar
+
+<PageTitle>Trade journal - TradePerso</PageTitle>
+
+<MudText Typo="Typo.h4" Class="page-title">Trade journal</MudText>
+
+<MudPaper Class="pa-4 metric-card mb-3">
+    <MudText Typo="Typo.h6" Class="mb-2">Position sizing</MudText>
+    <MudGrid Spacing="2">
+        <MudItem xs="6" sm="3"><MudNumericField T="decimal" @bind-Value="_pv" Label="Portfolio value" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="3"><MudNumericField T="decimal" @bind-Value="_risk" Label="Risk per trade %" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="3"><MudNumericField T="decimal" @bind-Value="_entry" Label="Entry" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="3"><MudNumericField T="decimal" @bind-Value="_stop" Label="Stop" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Compute">Compute</MudButton></MudItem>
+    </MudGrid>
+    @if (_sizing is not null)
+    {
+        <MudAlert Severity="Severity.Info" Class="mt-3" Dense="true">
+            Quantity: <strong>@_sizing.Quantity</strong> &middot; Notional: @_sizing.NotionalValue.ToString("N2")
+            &middot; Risk: @_sizing.RiskAmount.ToString("N2")
+            @if (_sizing.Warning is not null) { <span> &middot; @_sizing.Warning</span> }
+        </MudAlert>
+    }
+</MudPaper>
+
+<MudPaper Class="pa-4 metric-card mb-3">
+    <MudText Typo="Typo.h6" Class="mb-2">New entry</MudText>
+    <MudGrid Spacing="2">
+        <MudItem xs="6" sm="3"><MudTextField @bind-Value="_form.Ticker" Label="Ticker" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="3"><MudTextField @bind-Value="_form.SetupTag" Label="Setup" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="2"><MudNumericField T="decimal?" @bind-Value="_form.EntryPrice" Label="Entry" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="2"><MudNumericField T="decimal?" @bind-Value="_form.StopLoss" Label="Stop" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="6" sm="2"><MudNumericField T="decimal?" @bind-Value="_form.TargetPrice" Label="Target" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+        <MudItem xs="12"><MudTextField @bind-Value="_form.Thesis" Label="Thesis" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" /></MudItem>
+        <MudItem xs="12"><MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddAsync">Save entry</MudButton></MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_items is not null)
+{
+    <MudPaper Class="pa-2 metric-card">
+        <MudTable Items="_items" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm">
+            <HeaderContent>
+                <MudTh>Opened</MudTh><MudTh>Ticker</MudTh><MudTh>Setup</MudTh>
+                <MudTh>Entry</MudTh><MudTh>Stop</MudTh><MudTh>Target</MudTh>
+                <MudTh>Status</MudTh><MudTh>R</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.OpenedAt.ToString("yyyy-MM-dd")</MudTd>
+                <MudTd>@context.Ticker</MudTd>
+                <MudTd>@context.SetupTag</MudTd>
+                <MudTd>@(context.EntryPrice?.ToString("N2") ?? "-")</MudTd>
+                <MudTd>@(context.StopLoss?.ToString("N2") ?? "-")</MudTd>
+                <MudTd>@(context.TargetPrice?.ToString("N2") ?? "-")</MudTd>
+                <MudTd>@context.Status</MudTd>
+                <MudTd>@(context.RealizedR?.ToString("0.0") ?? "-")</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+}
+
+@code {
+    private string? _userId;
+    private IReadOnlyList<Domain.Entities.TradeJournalEntry>? _items;
+    private decimal _pv = 10000m, _risk = 1m, _entry = 100m, _stop = 95m;
+    private PositionSizingResultDto? _sizing;
+    private Domain.Entities.TradeJournalEntry _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userId = await CurrentUser.GetUserIdAsync();
+        if (_userId is null) return;
+        var s = await SettingsRepo.GetOrCreateAsync(_userId);
+        _pv = s.CapitalTotal > 0 ? s.CapitalTotal : 10000m;
+        _risk = s.RiskPerTradePct * 100m;
+        _items = await JournalRepo.ListAsync(_userId);
+    }
+
+    private void Compute()
+    {
+        _sizing = Sizer.Compute(_pv, _risk / 100m, _entry, _stop, hardMaxPositionPct: 0.10m);
+    }
+
+    private async Task AddAsync()
+    {
+        if (_userId is null || string.IsNullOrWhiteSpace(_form.Ticker)) return;
+        _form.UserId = _userId;
+        _form.OpenedAt = DateTime.UtcNow.Date;
+        await JournalRepo.AddAsync(_form);
+        Snackbar.Add("Trade saved", MudBlazor.Severity.Success);
+        _form = new();
+        _items = await JournalRepo.ListAsync(_userId);
+    }
+}

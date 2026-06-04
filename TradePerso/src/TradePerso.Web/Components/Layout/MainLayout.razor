@@ -1,0 +1,74 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" IsDarkMode="_isDark" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Primary" Dense="true">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@(() => _drawerOpen = !_drawerOpen)" />
+        <MudText Typo="Typo.h6" Class="ml-2">TradePerso</MudText>
+        <MudSpacer />
+        <MudTooltip Text="@(_isDark ? "Light mode" : "Dark mode")">
+            <MudIconButton Icon="@(_isDark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit" OnClick="@(() => _isDark = !_isDark)" />
+        </MudTooltip>
+        <AuthorizeView>
+            <Authorized>
+                <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit"
+                         AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudText Class="px-4 pt-2" Typo="Typo.caption">@context.User.Identity?.Name</MudText>
+                    <MudDivider Class="my-1" />
+                    <MudMenuItem Href="/profile" Icon="@Icons.Material.Filled.Person">Profile</MudMenuItem>
+                    <MudMenuItem Href="/settings" Icon="@Icons.Material.Filled.Settings">Settings</MudMenuItem>
+                    <form method="post" action="/auth/logout" style="margin:0">
+                        <button type="submit" class="mud-menu-item" style="background:none;border:0;width:100%;text-align:left;padding:6px 16px;cursor:pointer">
+                            Log out
+                        </button>
+                    </form>
+                </MudMenu>
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" ClipMode="DrawerClipMode.Always"
+               Variant="@DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-12 px-2 px-md-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDark = false;
+
+    private readonly MudTheme _theme = new()
+    {
+        Palette = new PaletteLight
+        {
+            Primary = "#1976d2",
+            Secondary = "#26a69a",
+            AppbarBackground = "#1976d2",
+            Background = "#f6f8fb",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#64b5f6",
+            Secondary = "#4db6ac",
+            Background = "#0f1722",
+            Surface = "#16202e",
+            AppbarBackground = "#1565c0",
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "12px",
+        },
+    };
+}
