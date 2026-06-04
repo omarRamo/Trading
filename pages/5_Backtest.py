@@ -20,20 +20,20 @@ stock_options = assets.loc[assets["asset_type"] == "ACTION", "ticker"].tolist()
 
 col1, col2 = st.columns(2)
 with col1:
-    etfs = st.multiselect("ETF pour la simulation", etf_options, default=etf_options[:1])
-    start = st.date_input("Date de debut", value=date(2018, 1, 1))
+    etfs = st.multiselect("ETFs for simulation", etf_options, default=etf_options[:1])
+    start = st.date_input("Start date", value=date(2018, 1, 1))
 with col2:
-    stocks = st.multiselect("Actions pour la poche 20 %", stock_options, default=stock_options[:3])
-    end = st.date_input("Date de fin", value=date.today())
+    stocks = st.multiselect("Stocks for the 20% bucket", stock_options, default=stock_options[:3])
+    end = st.date_input("End date", value=date.today())
 
 monthly_amount = st.number_input(
-    "Investissement mensuel",
+    "Monthly investment",
     min_value=0.0,
     value=float(settings.get("monthly_investment", 1000)),
     step=50.0,
 )
 
-if st.button("Lancer le backtest"):
+if st.button("Run backtest"):
     result = run_backtest(etfs, stocks, monthly_amount, start.isoformat(), end.isoformat())
     for warning in result.warnings:
         st.warning(warning)
@@ -45,8 +45,8 @@ if st.button("Lancer le backtest"):
     metrics = result.metrics.copy()
     for col in ["performance", "cagr", "volatility", "max_drawdown"]:
         metrics[col] = metrics[col].map(format_percent)
-    st.subheader("Statistiques")
+    st.subheader("Statistics")
     st.dataframe(metrics, use_container_width=True, hide_index=True)
-    st.caption("Backtest simplifie hors fiscalite, frais, change et disponibilite exacte Revolut.")
+    st.caption("Simplified backtest excluding taxes, detailed fees, FX conversion, and exact Revolut availability.")
 else:
-    st.info("Simule un DCA mensuel ETF, une repartition 70/20/10 et un achat unique au depart.")
+    st.info("Simulate ETF monthly DCA, 70/20/10 allocation, and one-time initial buy.")

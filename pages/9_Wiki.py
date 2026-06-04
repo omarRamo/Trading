@@ -8,58 +8,58 @@ from utils.ui import bootstrap_page
 bootstrap_page("Wiki")
 
 st.info(
-    "Cette page explique les notions de l'application. Elle reste pedagogique et ne constitue pas un conseil financier."
+    "This page explains the app concepts. It is educational and not financial advice."
 )
 
 st.subheader("Dashboard")
 st.write(
-    "Le Dashboard regroupe la valeur du portefeuille, le cash, l'allocation actuelle, "
-    "l'allocation cible, les alertes et les meilleurs candidats a analyser."
+    "Dashboard combines portfolio value, cash, current allocation, "
+    "target allocation, alerts, and top candidates to review."
 )
 
-st.subheader("Portefeuille")
+st.subheader("Portfolio")
 st.write(
-    "Le portefeuille est saisi manuellement. Il sert a calculer les poids, les plus-values latentes, "
-    "les ecarts d'allocation et les limites de concentration. Une suppression locale ne modifie rien sur Revolut."
+    "Portfolio is entered manually. It is used to compute weights, unrealized P/L, "
+    "allocation gaps, and concentration limits. Local deletion does not modify Revolut."
 )
 
-st.subheader("Marches")
+st.subheader("Markets")
 st.write(
-    "La page Marches recupere les prix via yfinance, calcule les performances recentes, MM50, MM200, RSI, "
-    "volatilite et volume moyen. Si un ticker ne repond pas, les autres continuent de fonctionner."
+    "Markets page fetches prices via yfinance and computes recent performance, MA50, MA200, RSI, "
+    "volatility, and average volume. If one ticker fails, others keep working."
 )
 
-st.subheader("Plan mensuel")
+st.subheader("Monthly plan")
 st.write(
-    "Le plan mensuel transforme ton enveloppe en repartition indicative. Il augmente les poches sous-ponderees, "
-    "reconstitue le cash si necessaire et bloque les actions trop concentrees."
+    "Monthly plan transforms your budget into an indicative allocation. It increases underweight buckets, "
+    "rebuilds cash when needed, and blocks over-concentrated stocks."
 )
 
-st.subheader("Idees d'investissement")
+st.subheader("Investment ideas")
 st.write(
-    "Les idees sont des candidats a analyser. Le score va de 0 a 100 et les signaux restent simples: "
-    "interessant, a surveiller, attendre, eviter. La decision finale reste manuelle."
+    "Ideas are candidates to review. The score goes from 0 to 100 and signals stay simple: "
+    "interesting, watch, wait, avoid. Final decision remains manual."
 )
 
 st.subheader("Backtest")
 st.write(
-    "Le backtest compare des scenarios historiques simples: DCA ETF, allocation 70/20/10 et achat unique au depart. "
-    "Il ignore fiscalite, frais detailles, change et disponibilite exacte Revolut."
+    "Backtest compares simple historical scenarios: ETF DCA, 70/20/10 allocation, and one-time initial buy. "
+    "It ignores taxes, detailed fees, FX conversion, and exact Revolut availability."
 )
 
 st.subheader("RSI, MM50, MM200")
 st.write(
-    "Le RSI mesure une situation de surachat ou de faiblesse recente. MM50 et MM200 sont des moyennes mobiles: "
-    "elles aident a visualiser la tendance, sans predire l'avenir."
+    "RSI highlights potential overbought/weakness conditions. MA50 and MA200 are moving averages: "
+    "they help visualize trend, without predicting the future."
 )
 
 st.subheader("Risque et concentration")
 st.write(
-    "Les actions individuelles sont plafonnees entre 5 % et 10 % selon ton reglage. Les ETF peuvent avoir un poids "
-    "plus important, mais l'application signale les concentrations sectorielles et les correlations elevees."
+    "Individual stocks are capped between 5% and 10% depending on your settings. ETFs may have higher weights, "
+    "but the app flags sector concentration and high correlations."
 )
 
-st.subheader("Profils Google")
+st.subheader("User profiles")
 st.write(
-    "Chaque compte Google cree un profil local distinct dans SQLite. Les donnees ne sont pas melangees entre utilisateurs."
+    "Each account creates a distinct local profile in SQLite. Data is isolated between users."
 )

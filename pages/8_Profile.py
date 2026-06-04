@@ -6,14 +6,14 @@ from database import get_assets, get_positions, get_transactions, get_user, list
 from utils.ui import bootstrap_page
 
 
-bootstrap_page("Profil")
+bootstrap_page("Profile")
 
 user = get_user()
 settings = load_settings()
 
 st.info(
-    "Ce profil est lie au compte Google connecte. Les parametres, la watchlist, le portefeuille, "
-    "les transactions et les plans mensuels sont separes des autres comptes Google."
+    "This profile is tied to the signed-in account. Settings, watchlist, portfolio, "
+    "transactions, and monthly plans are isolated from other accounts."
 )
 
 if user:
@@ -22,38 +22,38 @@ if user:
         if user.get("picture_url"):
             st.image(user["picture_url"], width=96)
     with col2:
-        st.subheader(user.get("name") or "Compte Google")
+        st.subheader(user.get("name") or "Google account")
         st.write(user.get("email"))
-        st.caption(f"Profil technique: {user.get('id')}")
+        st.caption(f"Technical profile ID: {user.get('id')}")
 
-st.subheader("Donnees de ce profil")
+st.subheader("Profile data")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Tickers suivis", len(get_assets(active_only=False)))
+col1.metric("Tracked tickers", len(get_assets(active_only=False)))
 col2.metric("Positions", len(get_positions()))
 col3.metric("Transactions", len(get_transactions()))
-col4.metric("Devise", settings.get("base_currency", "EUR"))
+col4.metric("Currency", settings.get("base_currency", "EUR"))
 
-st.subheader("Montants personnels")
+st.subheader("Personal amounts")
 with st.form("profile_amounts"):
     cash_available = st.number_input(
-        "Montant disponible pour investir",
+        "Available amount to invest",
         min_value=0.0,
         value=float(settings.get("cash_available", 0)),
         step=50.0,
     )
     monthly_investment = st.number_input(
-        "Enveloppe mensuelle habituelle",
+        "Usual monthly budget",
         min_value=0.0,
         value=float(settings.get("monthly_investment", 1000)),
         step=50.0,
     )
     capital_total = st.number_input(
-        "Capital total de reference",
+        "Reference total capital",
         min_value=0.0,
         value=float(settings.get("capital_total", 0)),
         step=100.0,
     )
-    submitted = st.form_submit_button("Mettre a jour mon profil")
+    submitted = st.form_submit_button("Update my profile")
 
 if submitted:
     save_settings(
@@ -63,10 +63,9 @@ if submitted:
             "capital_total": capital_total,
         }
     )
-    st.success("Profil mis a jour.")
+    st.success("Profile updated.")
     st.rerun()
 
-with st.expander("Profils deja crees sur cette installation locale"):
-    st.caption("Liste locale utile si plusieurs comptes Google utilisent la meme application.")
+with st.expander("Profiles created on this local installation"):
+    st.caption("Useful local list when multiple accounts use the same app.")
     st.dataframe(list_users(), use_container_width=True, hide_index=True)
-

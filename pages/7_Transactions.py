@@ -25,17 +25,17 @@ get_trade_journal_entries = getattr(db, "get_trade_journal_entries", None)
 trade_journal_stats = getattr(db, "trade_journal_stats", None)
 update_trade_journal_entry = getattr(db, "update_trade_journal_entry", None)
 
-st.subheader("Calculateur de taille de position")
+st.subheader("Position sizing calculator")
 calc_col1, calc_col2, calc_col3, calc_col4 = st.columns(4)
 with calc_col1:
     calc_direction = st.selectbox("Direction", ["LONG", "SHORT"], key="calc_direction")
 with calc_col2:
-    calc_entry = st.number_input("Prix d'entree", min_value=0.0, value=100.0, step=0.1, key="calc_entry")
+    calc_entry = st.number_input("Entry price", min_value=0.0, value=100.0, step=0.1, key="calc_entry")
 with calc_col3:
     calc_stop = st.number_input("Stop loss", min_value=0.0, value=95.0, step=0.1, key="calc_stop")
 with calc_col4:
     calc_rr = st.number_input(
-        "R/R cible",
+        "Target R/R",
         min_value=0.5,
         max_value=10.0,
         value=float(settings.get("default_rr_target", 2.0)),
@@ -46,7 +46,7 @@ with calc_col4:
 calc_col5, calc_col6 = st.columns(2)
 with calc_col5:
     calc_account = st.number_input(
-        "Capital de reference",
+        "Reference capital",
         min_value=0.0,
         value=float(settings.get("capital_total", 0.0)),
         step=100.0,
@@ -54,7 +54,7 @@ with calc_col5:
     )
 with calc_col6:
     calc_risk_pct = st.number_input(
-        "Risque par trade (%)",
+        "Risk per trade (%)",
         min_value=0.1,
         max_value=5.0,
         value=float(settings.get("risk_per_trade_pct", 0.01)) * 100,
@@ -72,36 +72,36 @@ else:
     target_price = calc_entry - calc_rr * risk_per_unit
 
 metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-metric_col1.metric("Budget risque", f"{risk_budget:,.2f}")
-metric_col2.metric("Risque/unite", f"{risk_per_unit:,.4f}")
-metric_col3.metric("Taille theorique", f"{position_qty:,.2f}")
-metric_col4.metric("Notional theorique", f"{position_notional:,.2f}")
-st.caption(f"Target theorique ({calc_direction}): {target_price:,.4f}")
+metric_col1.metric("Risk budget", f"{risk_budget:,.2f}")
+metric_col2.metric("Risk per unit", f"{risk_per_unit:,.4f}")
+metric_col3.metric("Theoretical size", f"{position_qty:,.2f}")
+metric_col4.metric("Theoretical notional", f"{position_notional:,.2f}")
+st.caption(f"Theoretical target ({calc_direction}): {target_price:,.4f}")
 
 assets = get_assets(active_only=True)
-choices = ["Saisie manuelle"] + assets["ticker"].tolist()
-selected = st.selectbox("Actif", choices)
+choices = ["Manual entry"] + assets["ticker"].tolist()
+selected = st.selectbox("Asset", choices)
 defaults = {}
-if selected != "Saisie manuelle":
+if selected != "Manual entry":
     defaults = assets[assets["ticker"] == selected].iloc[0].to_dict()
 
 with st.form("transaction_form"):
     ticker = st.text_input("Ticker", value=defaults.get("ticker", ""))
-    asset_name = st.text_input("Nom", value=defaults.get("name", ""))
+    asset_name = st.text_input("Name", value=defaults.get("name", ""))
     asset_type = st.selectbox("Type", ["ETF", "ACTION"], index=0 if defaults.get("asset_type", "ETF") == "ETF" else 1)
     transaction_type = st.selectbox("Operation", ["BUY", "SELL"])
-    quantity = st.number_input("Quantite", min_value=0.0, value=0.0, step=0.01)
-    price = st.number_input("Prix", min_value=0.0, value=0.0, step=0.01)
+    quantity = st.number_input("Quantity", min_value=0.0, value=0.0, step=0.01)
+    price = st.number_input("Price", min_value=0.0, value=0.0, step=0.01)
     transaction_date = st.date_input("Date", value=date.today())
-    currency = st.text_input("Devise", value=defaults.get("currency", settings.get("base_currency", "EUR")))
-    fees = st.number_input("Frais", min_value=0.0, value=0.0, step=0.1)
+    currency = st.text_input("Currency", value=defaults.get("currency", settings.get("base_currency", "EUR")))
+    fees = st.number_input("Fees", min_value=0.0, value=0.0, step=0.1)
     notes = st.text_area("Notes")
-    update_position = st.checkbox("Mettre a jour la position si achat", value=True)
-    submitted = st.form_submit_button("Enregistrer la transaction")
+    update_position = st.checkbox("Update position on buy", value=True)
+    submitted = st.form_submit_button("Save transaction")
 
 if submitted:
     if not ticker.strip() or quantity <= 0 or price <= 0:
-        st.error("Ticker, quantite et prix sont obligatoires.")
+        st.error("Ticker, quantity, and price are required.")
     else:
         add_transaction(
             {
@@ -119,23 +119,23 @@ if submitted:
             },
             update_position=update_position,
         )
-        st.success("Transaction enregistree localement.")
+        st.success("Transaction saved locally.")
         st.rerun()
 
-st.subheader("Historique local")
+st.subheader("Local history")
 transactions = get_transactions()
 if transactions.empty:
-    st.info("Aucune transaction enregistree.")
+    st.info("No transaction recorded.")
 else:
     st.dataframe(transactions, use_container_width=True, hide_index=True)
 
-st.subheader("Journal de trades")
+st.subheader("Trade journal")
 with st.form("trade_journal_form"):
     jcol1, jcol2, jcol3 = st.columns(3)
     with jcol1:
-        j_ticker = st.text_input("Ticker journal", value=defaults.get("ticker", ""))
+        j_ticker = st.text_input("Journal ticker", value=defaults.get("ticker", ""))
     with jcol2:
-        j_direction = st.selectbox("Direction setup", ["LONG", "SHORT"])
+        j_direction = st.selectbox("Setup direction", ["LONG", "SHORT"])
     with jcol3:
         j_setup = st.text_input("Setup tag", placeholder="breakout, pullback, mean-reversion")
 
@@ -149,20 +149,20 @@ with st.form("trade_journal_form"):
 
     jcol7, jcol8 = st.columns(2)
     with jcol7:
-        j_risk_amount = st.number_input("Risque monetaire", min_value=0.0, value=float(risk_budget), step=1.0)
+        j_risk_amount = st.number_input("Monetary risk", min_value=0.0, value=float(risk_budget), step=1.0)
     with jcol8:
-        j_planned_rr = st.number_input("R/R planifie", min_value=0.0, value=float(calc_rr), step=0.1)
+        j_planned_rr = st.number_input("Planned R/R", min_value=0.0, value=float(calc_rr), step=0.1)
 
     j_thesis = st.text_area("These")
     j_invalidation = st.text_area("Invalidation")
-    j_notes = st.text_area("Notes journal")
-    journal_submit = st.form_submit_button("Ajouter au journal")
+    j_notes = st.text_area("Journal notes")
+    journal_submit = st.form_submit_button("Add to journal")
 
 if journal_submit:
     if not callable(add_trade_journal_entry):
-        st.warning("Journal de trades non disponible dans cette version. Mise a jour necessaire.")
+        st.warning("Trade journal is unavailable in this version. Update required.")
     elif not j_ticker.strip() or not j_setup.strip():
-        st.error("Ticker et setup tag sont obligatoires pour le journal.")
+        st.error("Ticker and setup tag are required for journal entries.")
     else:
         add_trade_journal_entry(
             {
@@ -181,7 +181,7 @@ if journal_submit:
                 "notes": j_notes,
             }
         )
-        st.success("Entree de journal ajoutee.")
+        st.success("Journal entry added.")
         st.rerun()
 
 journal_entries = get_trade_journal_entries() if callable(get_trade_journal_entries) else None
@@ -193,31 +193,31 @@ stats = (
     else {"total": 0, "open": 0, "win_rate": 0.0, "expectancy_r": 0.0}
 )
 stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-stat_col1.metric("Trades journal", stats["total"])
-stat_col2.metric("Trades ouverts", stats["open"])
+stat_col1.metric("Journal trades", stats["total"])
+stat_col2.metric("Open trades", stats["open"])
 stat_col3.metric("Win rate (R>0)", format_percent(stats["win_rate"]))
 stat_col4.metric("Expectancy (R)", f"{stats['expectancy_r']:.2f}")
 
 if not journal_entries.empty:
-    with st.expander("Clore un trade"):
+    with st.expander("Close a trade"):
         open_entries = journal_entries[journal_entries["status"] == "open"]
         if open_entries.empty:
-            st.info("Aucun trade ouvert a clore.")
+            st.info("No open trade to close.")
         else:
             row_labels = [
                 f"#{int(row['id'])} {row['ticker']} {row['setup_tag']}"
                 for _, row in open_entries.iterrows()
             ]
-            selected_label = st.selectbox("Trade ouvert", row_labels)
+            selected_label = st.selectbox("Open trade", row_labels)
             selected_id = int(selected_label.split(" ")[0].replace("#", ""))
             close_col1, close_col2, close_col3 = st.columns(3)
             with close_col1:
-                realized_pnl = st.number_input("P/L realise", value=0.0, step=1.0)
+                realized_pnl = st.number_input("Realized P/L", value=0.0, step=1.0)
             with close_col2:
-                realized_r = st.number_input("R realise", value=0.0, step=0.1)
+                realized_r = st.number_input("Realized R", value=0.0, step=0.1)
             with close_col3:
-                close_date = st.date_input("Date de cloture", value=date.today())
-            if st.button("Valider cloture"):
+                close_date = st.date_input("Close date", value=date.today())
+            if st.button("Confirm close"):
                 if callable(update_trade_journal_entry):
                     update_trade_journal_entry(
                         selected_id,
@@ -228,15 +228,15 @@ if not journal_entries.empty:
                             "closed_at": close_date.isoformat(),
                         },
                     )
-                    st.success("Trade clos dans le journal.")
+                    st.success("Trade closed in journal.")
                     st.rerun()
                 else:
-                    st.warning("Fonction de cloture non disponible dans cette version.")
+                    st.warning("Close function is unavailable in this version.")
 
     if callable(trade_journal_r_chart):
         st.plotly_chart(trade_journal_r_chart(journal_entries), use_container_width=True)
     else:
-        st.info("Graphique R indisponible sur cette version. Mets a jour charts.py.")
+        st.info("R chart unavailable in this version. Update charts.py.")
     st.dataframe(journal_entries, use_container_width=True, hide_index=True)
 else:
-    st.info("Aucune entree de journal pour le moment.")
+    st.info("No journal entry yet.")

@@ -27,7 +27,7 @@ def _num(value: Any, default: float | None = None) -> float | None:
 
 def _metric_direction(metric: float | None, positive_text: str, negative_text: str) -> tuple[int, str]:
     if metric is None:
-        return 0, "Donnee insuffisante"
+        return 0, "Insufficient data"
     return (1, positive_text) if metric > 0 else (-1, negative_text)
 
 
@@ -38,10 +38,10 @@ def _score_etf(asset: pd.Series, metrics: dict[str, Any], summary: dict[str, Any
     if etf_gap > 0:
         bonus = min(22.0, etf_gap * 100)
         score += bonus
-        reasons.append(f"ETF sous-ponderes dans l'allocation cible (+{bonus:.0f})")
+        reasons.append(f"ETF underweight vs target allocation (+{bonus:.0f})")
     else:
         score += max(-12.0, etf_gap * 50)
-        reasons.append("Poche ETF deja proche ou au-dessus de la cible")
+        reasons.append("ETF bucket already near or above target")
 
     price = _num(metrics.get("price"))
     ma200 = _num(metrics.get("ma200"))
@@ -54,38 +54,38 @@ def _score_etf(asset: pd.Series, metrics: dict[str, Any], summary: dict[str, Any
     if price and ma200:
         if price > ma200:
             score += 10
-            reasons.append("Prix au-dessus de la moyenne mobile 200 jours")
+            reasons.append("Price above 200-day moving average")
         else:
             score -= 10
-            reasons.append("Prix sous la moyenne mobile 200 jours")
+            reasons.append("Price below 200-day moving average")
     if ma50 and ma200 and ma50 > ma200:
         score += 4
-        reasons.append("MM50 au-dessus de MM200")
+        reasons.append("MA50 above MA200")
 
-    direction, text = _metric_direction(perf_6m, "Tendance 6 mois positive", "Tendance 6 mois negative")
+    direction, text = _metric_direction(perf_6m, "Positive 6-month trend", "Negative 6-month trend")
     score += 10 * direction if direction > 0 else 8 * direction
     reasons.append(text)
 
     if volatility is not None:
         if volatility < 0.22:
             score += 8
-            reasons.append("Volatilite recente raisonnable")
+            reasons.append("Recent volatility is reasonable")
         elif volatility < 0.35:
             score += 3
-            reasons.append("Volatilite acceptable")
+            reasons.append("Volatility is acceptable")
         else:
             score -= 8
-            reasons.append("Volatilite elevee")
+            reasons.append("High volatility")
     if perf_1m is not None and perf_1m > 0.10:
         score -= 8
-        reasons.append("Hausse 1 mois deja forte: prudence sur l'euphorie")
+        reasons.append("Strong 1-month rise: avoid euphoric entries")
     if rsi is not None and rsi > 70:
         score -= 15
-        reasons.append("RSI superieur a 70: actif potentiellement surachete")
+        reasons.append("RSI above 70: potentially overbought")
 
     if metrics.get("status") == "error":
         score -= 15
-        reasons.append("Donnees de marche indisponibles")
+        reasons.append("Market data unavailable")
     return max(0.0, min(100.0, score)), reasons
 
 
@@ -107,10 +107,10 @@ def _score_stock(
             weight = float(current.iloc[0].get("weight", 0))
             if weight >= hard_max:
                 blocked = True
-                return 0.0, [f"Position deja au-dessus de la limite dure {hard_max:.0%}"], blocked
+                return 0.0, [f"Position already above hard limit {hard_max:.0%}"], blocked
             if weight >= max_weight:
                 score -= 25
-                reasons.append(f"Position deja proche de la limite personnelle {max_weight:.0%}")
+                reasons.append(f"Position already close to personal limit {max_weight:.0%}")
 
     price = _num(metrics.get("price"))
     ma200 = _num(metrics.get("ma200"))
@@ -123,40 +123,40 @@ def _score_stock(
     if price and ma200:
         if price > ma200:
             score += 12
-            reasons.append("Prix au-dessus de MM200")
+            reasons.append("Price above MA200")
         else:
             score -= 10
-            reasons.append("Prix sous MM200")
+            reasons.append("Price below MA200")
     if ma50 and ma200:
         if ma50 > ma200:
             score += 10
-            reasons.append("MM50 au-dessus de MM200")
+            reasons.append("MA50 above MA200")
         else:
             score -= 4
-            reasons.append("MM50 sous MM200")
-    direction, text = _metric_direction(perf_6m, "Tendance long terme positive", "Tendance 6 mois negative")
+            reasons.append("MA50 below MA200")
+    direction, text = _metric_direction(perf_6m, "Positive long-term trend", "Negative 6-month trend")
     score += 10 * direction if direction > 0 else 6 * direction
     reasons.append(text)
 
     if rsi is not None and rsi > 70:
         score -= 15
-        reasons.append("RSI superieur a 70: achat bloque ou a temporiser")
+        reasons.append("RSI above 70: delay or block buy")
     if volatility is not None:
         if volatility > 0.50:
             score -= 16
-            reasons.append("Volatilite tres elevee")
+            reasons.append("Very high volatility")
         elif volatility > 0.35:
             score -= 7
-            reasons.append("Volatilite elevee")
+            reasons.append("High volatility")
         else:
             score += 5
-            reasons.append("Volatilite contenue")
+            reasons.append("Contained volatility")
     if perf_1m is not None and perf_1m < -0.15 and price and ma50 and price < ma50:
         score -= 12
-        reasons.append("Baisse recente forte sans stabilisation technique")
+        reasons.append("Strong recent drop without technical stabilization")
     if metrics.get("status") == "error":
         score -= 15
-        reasons.append("Donnees de marche indisponibles")
+        reasons.append("Market data unavailable")
     return max(0.0, min(100.0, score)), reasons, blocked
 
 
@@ -167,7 +167,7 @@ def prudence_level(score: float, blocked: bool = False) -> str:
         return "intéressant"
     if score >= 55:
         return "à surveiller"
-    return "attendre"
+    return "wait"
 
 
 def _risk_level(
@@ -178,7 +178,7 @@ def _risk_level(
     settings: dict[str, Any],
 ) -> str:
     if metrics.get("status") == "error":
-        return "inconnu"
+        return "unknown"
 
     points = 1 if asset_type == "ACTION" else 0
     volatility = _num(metrics.get("volatility"))
@@ -213,7 +213,7 @@ def _risk_level(
         return "élevé"
     if points >= 1:
         return "modéré"
-    return "faible"
+    return "low"
 
 
 def _idea_reason(reasons: list[str], score: float) -> str:
@@ -232,7 +232,7 @@ def _idea_reason(reasons: list[str], score: float) -> str:
     ]
     if positives:
         return " ; ".join(positives[:3])
-    return f"Score de qualite {score:.1f}/100 selon les regles d'allocation, de tendance et de risque."
+    return f"Quality score {score:.1f}/100 selon les regles d'allocation, de tendance et de risque."
 
 
 def _vigilance_points(
@@ -244,9 +244,9 @@ def _vigilance_points(
 ) -> list[str]:
     points: list[str] = []
     if blocked:
-        points.append("Plafond de concentration deja atteint ou depasse.")
+        points.append("Concentration cap already reached or exceeded.")
     if metrics.get("status") in {"error", "stale"}:
-        points.append("Donnees de marche indisponibles ou issues du cache.")
+        points.append("Market data unavailable ou issues du cache.")
 
     rsi = _num(metrics.get("rsi14"))
     volatility = _num(metrics.get("volatility"))
@@ -256,17 +256,17 @@ def _vigilance_points(
     ma200 = _num(metrics.get("ma200"))
 
     if rsi is not None and rsi > 70:
-        points.append("RSI superieur a 70: risque de surachat.")
+        points.append("RSI above 70: overbought risk.")
     if volatility is not None and volatility > 0.35:
-        points.append("Volatilite recente elevee.")
+        points.append("Recent volatility is high.")
     if perf_1m is not None and perf_1m > 0.10:
-        points.append("Hausse recente forte: eviter l'achat impulsif.")
+        points.append("Strong recent rise: avoid impulsive buying.")
     if perf_1m is not None and perf_1m < -0.15:
-        points.append("Baisse recente forte: verifier la stabilisation.")
+        points.append("Strong recent drop: confirm stabilization.")
     if perf_6m is not None and perf_6m < 0:
-        points.append("Tendance 6 mois negative.")
+        points.append("Negative 6-month trend.")
     if price and ma200 and price < ma200:
-        points.append("Prix sous la moyenne mobile 200 jours.")
+        points.append("Price below 200-day moving average.")
 
     positions = summary.get("positions", pd.DataFrame())
     if asset["asset_type"] == "ACTION" and not positions.empty:
@@ -275,10 +275,10 @@ def _vigilance_points(
             weight = float(current.iloc[0].get("weight", 0))
             max_weight = float(settings.get("max_individual_position", 0.08))
             if weight >= max_weight * 0.8:
-                points.append("Position deja significative dans le portefeuille.")
+                points.append("Position already significant in portfolio.")
 
     if not points:
-        points.append("Aucun point de vigilance majeur dans les regles du MVP.")
+        points.append("No major risk point in current MVP rules.")
     return points[:5]
 
 
@@ -389,7 +389,7 @@ def _allocate_to_candidates(
     else:
         eligible = [c for c in candidates if c["asset_type"] == "ACTION" and c["score"] >= 55 and c["prudence_level"] != "éviter"][:5]
     if not eligible:
-        warnings.append(f"Aucun candidat {asset_type} n'a passe les filtres de prudence.")
+        warnings.append(f"No candidate {asset_type} passed prudence filters.")
         return candidates, 0.0, warnings
 
     total_score = sum(max(1.0, c["score"]) for c in eligible)
@@ -452,7 +452,7 @@ def build_monthly_plan(
             "recommended_amount": rec["recommended_amount"],
             "max_theoretical_amount": rec.get("max_theoretical_amount", 0.0),
             "prudence_level": rec["prudence_level"],
-            "risk_level": rec.get("risk_level", "inconnu"),
+            "risk_level": rec.get("risk_level", "unknown"),
             "idea_reason": rec.get("idea_reason", ""),
             "vigilance_points": rec.get("vigilance_points", []),
             "reasons": rec["reasons"],
@@ -466,7 +466,7 @@ def build_monthly_plan(
     ][:8]
     warnings = etf_warnings + stock_warnings
     if bucket_amounts["CASH"] > monthly_amount * 0.25:
-        warnings.append("Part cash elevee ce mois-ci: le moteur privilegie la prudence ou reconstitue la poche opportunites.")
+        warnings.append("High cash share this month: engine prioritizes prudence or cash rebuilding.")
 
     plan = {
         "plan_date": datetime.now().strftime("%Y-%m-%d"),
@@ -481,3 +481,4 @@ def build_monthly_plan(
         save_monthly_plan(plan)
         save_recommendations(recommendations)
     return plan
+

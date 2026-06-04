@@ -39,16 +39,16 @@ def concentration_alerts(summary: dict[str, Any], settings: dict[str, Any]) -> l
             alerts.append(
                 _alert(
                     "danger",
-                    f"{row['ticker']} depasse 10 %",
-                    f"L'action pese {weight:.1%} du portefeuille. Le moteur bloquera tout achat additionnel.",
+                    f"{row['ticker']} above 10%",
+                    f"This stock is {weight:.1%} of portfolio value. Additional buys will be blocked by the engine.",
                 )
             )
         elif weight > max_position:
             alerts.append(
                 _alert(
                     "warning",
-                    f"{row['ticker']} proche de la limite",
-                    f"L'action pese {weight:.1%}; limite personnelle configuree: {max_position:.1%}.",
+                    f"{row['ticker']} near the limit",
+                    f"This stock is {weight:.1%}; configured personal limit: {max_position:.1%}.",
                 )
             )
     return alerts
@@ -61,8 +61,8 @@ def cash_alerts(summary: dict[str, Any]) -> list[dict[str, str]]:
         return [
             _alert(
                 "warning",
-                "Cash sous la cible",
-                f"Cash actuel {current:.1%}, cible {target:.1%}. Le plan mensuel favorisera la reconstitution du cash.",
+                "Cash below target",
+                f"Current cash {current:.1%}, target {target:.1%}. Monthly plan will prioritize rebuilding cash.",
             )
         ]
     return []
@@ -79,8 +79,8 @@ def tech_exposure_alerts(summary: dict[str, Any], settings: dict[str, Any]) -> l
         return [
             _alert(
                 "warning",
-                "Exposition tech elevee",
-                f"Les actifs classes technologie pesent {tech_weight:.1%}, au-dessus du seuil {limit:.1%}.",
+                "High tech exposure",
+                f"Technology-classified assets represent {tech_weight:.1%}, above threshold {limit:.1%}.",
             )
         ]
     return []
@@ -94,8 +94,8 @@ def overbought_alerts(market_data: dict[str, dict[str, Any]]) -> list[dict[str, 
             alerts.append(
                 _alert(
                     "info",
-                    f"{ticker} potentiellement surachete",
-                    f"RSI 14 jours a {rsi:.1f}. Le moteur appliquera un malus d'achat impulsif.",
+                    f"{ticker} potentially overbought",
+                    f"RSI 14 days at {rsi:.1f}. Engine applies a penalty to impulsive buys.",
                 )
             )
     return alerts[:8]
@@ -130,8 +130,8 @@ def correlation_alerts(
     return [
         _alert(
             "info",
-            "Actifs fortement correles",
-            f"Certaines paires recentes sont tres correlees: {examples}. Attention aux doublons de risque.",
+            "Highly correlated assets",
+            f"Some recent pairs are highly correlated: {examples}. Watch out for duplicated risk.",
         )
     ]
 
@@ -148,8 +148,8 @@ def generate_risk_alerts(summary: dict[str, Any], settings: dict[str, Any]) -> l
         alerts.append(
             _alert(
                 "danger",
-                "Produit non compatible",
-                "Ces lignes ressemblent a des produits a levier, short ou inverse: " + ", ".join(leveraged),
+                "Incompatible instrument",
+                "These positions look like leveraged, short, or inverse products: " + ", ".join(leveraged),
             )
         )
     alerts.extend(overbought_alerts(market_data))
@@ -158,8 +158,8 @@ def generate_risk_alerts(summary: dict[str, Any], settings: dict[str, Any]) -> l
         alerts.append(
             _alert(
                 "success",
-                "Aucune alerte bloquante",
-                "Les limites principales du MVP ne signalent pas de concentration ou de cash critique.",
+                "No blocking alert",
+                "Main MVP limits do not flag critical concentration or cash issues.",
             )
         )
     return alerts
@@ -185,3 +185,4 @@ def max_additional_amount_for_stock(
         if not match.empty:
             current_value = float(match.iloc[0]["current_value"])
     return max(0.0, max_weight * total_after - current_value)
+

@@ -31,6 +31,7 @@ txt = {
     "risk_alerts": "Risk alerts" if lang == "en" else "Alertes de risque",
     "top_etf": "Top 5 ETF ideas to review" if lang == "en" else "5 meilleures idées ETF à analyser",
     "top_stocks": "Top 5 stock ideas to monitor" if lang == "en" else "5 meilleures actions à surveiller",
+    "target": "target" if lang == "en" else "cible",
 }
 
 with st.sidebar:
@@ -66,7 +67,7 @@ with right:
 
 for bucket, target in summary["allocation_target"].items():
     current = summary["allocation_current"].get(bucket, 0.0)
-    st.write(f"**{bucket}** : {current:.0%} / cible {target:.0%}")
+    st.write(f"**{bucket}** : {current:.0%} / {txt['target']} {target:.0%}")
     st.progress(min(max(current, 0.0), 1.0))
 
 st.subheader(txt["monthly_plan"])
