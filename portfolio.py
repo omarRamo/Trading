@@ -24,6 +24,11 @@ def enrich_positions_with_market(
     if positions is None:
         positions = get_positions()
     if positions.empty:
+        # Keep a stable dataframe schema for downstream computations
+        # even when a new user has no position yet.
+        for col in ["current_price", "market_status", "current_value", "unrealized_pnl", "unrealized_pnl_pct"]:
+            if col not in positions.columns:
+                positions[col] = pd.Series(dtype="float64") if col != "market_status" else pd.Series(dtype="object")
         return positions, market_data or {}
 
     positions = positions.copy()
@@ -76,9 +81,22 @@ def compute_portfolio_summary(
     elif not positions.empty:
         positions["weight"] = 0.0
 
+    has_asset_type = "asset_type" in positions.columns
+    has_current_value = "current_value" in positions.columns
+    etf_value = (
+        float(positions.loc[positions["asset_type"] == "ETF", "current_value"].sum())
+        if has_asset_type and has_current_value
+        else 0.0
+    )
+    action_value = (
+        float(positions.loc[positions["asset_type"] == "ACTION", "current_value"].sum())
+        if has_asset_type and has_current_value
+        else 0.0
+    )
+
     allocation_current = {
-        "ETF": float(positions.loc[positions["asset_type"] == "ETF", "current_value"].sum() / total_value) if total_value else 0.0,
-        "ACTION": float(positions.loc[positions["asset_type"] == "ACTION", "current_value"].sum() / total_value) if total_value else 0.0,
+        "ETF": float(etf_value / total_value) if total_value else 0.0,
+        "ACTION": float(action_value / total_value) if total_value else 0.0,
         "CASH": float(cash / total_value) if total_value else 0.0,
     }
     allocation_target = _target_allocations(settings)
