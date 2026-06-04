@@ -36,6 +36,20 @@ with st.form("settings_form"):
         cash_pct = st.number_input("Allocation cash (%)", min_value=0.0, max_value=100.0, value=float(settings.get("target_allocation_cash", 0.1)) * 100, step=1.0)
     base_currency = st.text_input("Devise principale", value=settings.get("base_currency", "EUR"))
     max_position = st.slider("Risque maximum par action individuelle", min_value=0.05, max_value=0.10, value=float(settings.get("max_individual_position", 0.08)), step=0.005, format="%.3f")
+    risk_per_trade_pct = st.number_input(
+        "Risque par trade (%)",
+        min_value=0.1,
+        max_value=5.0,
+        value=float(settings.get("risk_per_trade_pct", 0.01)) * 100,
+        step=0.1,
+    )
+    default_rr_target = st.number_input(
+        "R/R cible par defaut",
+        min_value=0.5,
+        max_value=10.0,
+        value=float(settings.get("default_rr_target", 2.0)),
+        step=0.1,
+    )
     risk_profile = st.selectbox(
         "Profil de risque",
         RISK_PROFILES,
@@ -69,6 +83,8 @@ if submitted:
                 "base_currency": base_currency.upper().strip() or "EUR",
                 "max_individual_position": max_position,
                 "hard_max_individual_position": 0.10,
+                "risk_per_trade_pct": risk_per_trade_pct / 100,
+                "default_rr_target": default_rr_target,
                 "risk_profile": risk_profile,
                 "investment_horizon": investment_horizon,
                 "tech_exposure_limit": tech_limit,

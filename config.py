@@ -32,6 +32,8 @@ DEFAULT_SETTINGS = {
     "notification_digest_limit": 10,
     "notification_frequency": "manual",
     "notification_hour_utc": 7,
+    "risk_per_trade_pct": 0.01,
+    "default_rr_target": 2.0,
 }
 
 RISK_PROFILES = ["prudent", "equilibre", "dynamique"]
