@@ -3,6 +3,12 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from database import (
+    get_notification_preferences,
+    log_notification_delivery,
+    set_notification_last_sent,
+)
+from email_notifications import send_recommendations_digest
 from strategy import generate_recommendations
 from utils.formatting import format_percent
 from utils.ui import bootstrap_page, investment_ideas_frame
@@ -26,6 +32,8 @@ if st.button("Calculer les idées"):
     if not ideas:
         st.info("Aucun actif actif dans la watchlist.")
         st.stop()
+
+    st.session_state["latest_ideas"] = ideas
 
     st.subheader("Candidats à analyser")
     st.dataframe(investment_ideas_frame(ideas), use_container_width=True, hide_index=True)
@@ -53,3 +61,45 @@ if st.button("Calculer les idées"):
     st.info(ideas[0]["disclaimer"])
 else:
     st.info("Le moteur classe les actifs de 0 a 100 selon des regles techniques, d'allocation et de risque. Il ne remplace pas ta decision finale.")
+
+if st.session_state.get("latest_ideas"):
+    st.subheader("Envoi email")
+    prefs = get_notification_preferences()
+    coln1, coln2 = st.columns([2, 1])
+    with coln1:
+        target_email = st.text_input(
+            "Destinataire",
+            value=str(prefs.get("email", "")),
+            help="Adresse qui recevra le digest des recommandations filtrées.",
+        )
+    with coln2:
+        st.write("")
+        send_now = st.button("Envoyer le digest")
+
+    if send_now:
+        ideas = st.session_state.get("latest_ideas", [])
+        _, summary = generate_recommendations(force_market_refresh=False, persist=False)
+        result = send_recommendations_digest(
+            recommendations=ideas,
+            summary=summary,
+            preferences=prefs,
+            target_email=target_email,
+        )
+        if result.ok:
+            log_notification_delivery(
+                email=target_email.strip(),
+                subject=result.subject,
+                status="sent",
+                item_count=result.item_count,
+            )
+            set_notification_last_sent()
+            st.success(result.message)
+        else:
+            log_notification_delivery(
+                email=target_email.strip(),
+                subject=result.subject or "Trading Digest",
+                status="error",
+                item_count=result.item_count,
+                error_message=result.message,
+            )
+            st.error(result.message)

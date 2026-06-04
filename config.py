@@ -25,6 +25,13 @@ DEFAULT_SETTINGS = {
     "auto_sync_market_data": True,
     "auto_sync_interval_hours": 6,
     "last_market_sync_at": "",
+    "email_notifications_enabled": False,
+    "notification_email": "",
+    "notification_min_score": 60.0,
+    "notification_asset_types": ["ETF", "ACTION"],
+    "notification_digest_limit": 10,
+    "notification_frequency": "manual",
+    "notification_hour_utc": 7,
 }
 
 RISK_PROFILES = ["prudent", "equilibre", "dynamique"]
