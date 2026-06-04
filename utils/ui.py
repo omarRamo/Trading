@@ -8,7 +8,11 @@ import streamlit as st
 
 from config import DISCLAIMER
 from database import initialize_database, load_settings
-from market_sync import maybe_auto_sync_market_data, sync_market_data
+from market_sync import (
+    maybe_auto_sync_market_data,
+    maybe_send_daily_recommendation_digest,
+    sync_market_data,
+)
 from utils.auth import render_logout_control, require_login
 from utils.formatting import format_currency, format_percent
 from utils.badges import signal_badge
@@ -35,6 +39,12 @@ def _render_market_sync_sidebar(title: str) -> None:
         st.sidebar.success(f"{result['synced']} tickers synchronises.")
         if result["errors"]:
             st.sidebar.warning(f"{len(result['errors'])} ticker(s) sans donnees.")
+        digest_result = maybe_send_daily_recommendation_digest(force=False)
+        if digest_result:
+            if digest_result.get("ok"):
+                st.sidebar.success(f"Digest email envoye ({digest_result.get('item_count', 0)} idee(s)).")
+            else:
+                st.sidebar.warning(f"Digest email non envoye: {digest_result.get('message', 'erreur')}.")
     else:
         with st.spinner("Verification de la synchro marche..."):
             result = maybe_auto_sync_market_data()
@@ -42,6 +52,12 @@ def _render_market_sync_sidebar(title: str) -> None:
             st.sidebar.success(f"Synchro auto: {result['synced']} tickers.")
             if result["errors"]:
                 st.sidebar.warning(f"{len(result['errors'])} ticker(s) sans donnees.")
+        digest_result = maybe_send_daily_recommendation_digest(force=False)
+        if digest_result:
+            if digest_result.get("ok"):
+                st.sidebar.success(f"Digest email envoye ({digest_result.get('item_count', 0)} idee(s)).")
+            else:
+                st.sidebar.warning(f"Digest email non envoye: {digest_result.get('message', 'erreur')}.")
 
     refreshed_settings = load_settings()
     last_sync = refreshed_settings.get("last_market_sync_at") or "Jamais"

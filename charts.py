@@ -90,3 +90,25 @@ def backtest_chart(curve: pd.DataFrame) -> go.Figure:
         )
     fig.update_layout(title="Courbe de capital simulee", height=460, margin=dict(l=20, r=20, t=50, b=20))
     return fig
+
+
+def trade_journal_r_chart(entries: pd.DataFrame) -> go.Figure:
+    if entries.empty or "realized_r" not in entries:
+        return empty_figure("Aucune donnee de journal de trade disponible")
+
+    frame = entries.copy()
+    frame["realized_r"] = pd.to_numeric(frame["realized_r"], errors="coerce")
+    frame = frame.dropna(subset=["realized_r"])
+    if frame.empty:
+        return empty_figure("Aucun trade clos avec multiple R renseigne")
+
+    fig = px.histogram(
+        frame,
+        x="realized_r",
+        nbins=20,
+        title="Distribution des multiples R realises",
+    )
+    fig.update_layout(height=360, margin=dict(l=20, r=20, t=50, b=20))
+    fig.update_xaxes(title="R multiple")
+    fig.update_yaxes(title="Nombre de trades")
+    return fig

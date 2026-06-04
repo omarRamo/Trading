@@ -212,6 +212,54 @@ def initialize_database() -> None:
                 warnings_json TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS notification_preferences (
+                user_id TEXT PRIMARY KEY,
+                email TEXT,
+                is_enabled INTEGER NOT NULL DEFAULT 0,
+                min_score REAL NOT NULL DEFAULT 60,
+                asset_types_json TEXT NOT NULL DEFAULT '["ETF", "ACTION"]',
+                max_items INTEGER NOT NULL DEFAULT 10,
+                frequency TEXT NOT NULL DEFAULT 'manual',
+                send_hour_utc INTEGER NOT NULL DEFAULT 7,
+                last_sent_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS notification_deliveries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                email TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                status TEXT NOT NULL,
+                item_count INTEGER NOT NULL DEFAULT 0,
+                error_message TEXT,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS trade_journal_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                direction TEXT NOT NULL DEFAULT 'LONG',
+                setup_tag TEXT NOT NULL,
+                thesis TEXT,
+                invalidation TEXT,
+                entry_price REAL,
+                stop_loss REAL,
+                target_price REAL,
+                risk_amount REAL,
+                planned_rr REAL,
+                realized_pnl REAL,
+                realized_r REAL,
+                status TEXT NOT NULL DEFAULT 'open',
+                opened_at TEXT NOT NULL,
+                closed_at TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
             """
         )
         conn.commit()
@@ -1159,3 +1207,263 @@ def mark_price_alert_triggered(alert_id: int, user_id: str | None = None) -> Non
     with get_connection() as conn:
         conn.execute("UPDATE price_alerts SET triggered_at = ? WHERE id = ? AND user_id = ?", (utc_now(), alert_id, user_id))
         conn.commit()
+
+
+def get_notification_preferences(user_id: str | None = None) -> dict[str, Any]:
+    user_id = user_id or get_current_user_id()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM notification_preferences WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+    if row is None:
+        settings = load_settings(user_id=user_id)
+        return {
+            "user_id": user_id,
+            "email": settings.get("notification_email", "") or settings.get("personal_email", ""),
+            "is_enabled": bool(settings.get("email_notifications_enabled", False)),
+            "min_score": float(settings.get("notification_min_score", 60.0)),
+            "asset_types": settings.get("notification_asset_types", ["ETF", "ACTION"]),
+            "max_items": int(settings.get("notification_digest_limit", 10)),
+            "frequency": str(settings.get("notification_frequency", "manual")),
+            "send_hour_utc": int(settings.get("notification_hour_utc", 7)),
+            "last_sent_at": "",
+        }
+    data = dict(row)
+    data["asset_types"] = _json_loads(data.pop("asset_types_json") or "[]")
+    data["is_enabled"] = bool(data.get("is_enabled", 0))
+    return data
+
+
+def upsert_notification_preferences(preferences: dict[str, Any], user_id: str | None = None) -> None:
+    user_id = user_id or get_current_user_id()
+    now = utc_now()
+    current = get_notification_preferences(user_id=user_id)
+    email = str(preferences.get("email", current.get("email", ""))).strip()
+    is_enabled = int(bool(preferences.get("is_enabled", current.get("is_enabled", False))))
+    min_score = float(preferences.get("min_score", current.get("min_score", 60.0)))
+    asset_types = preferences.get("asset_types", current.get("asset_types", ["ETF", "ACTION"]))
+    max_items = int(preferences.get("max_items", current.get("max_items", 10)))
+    frequency = str(preferences.get("frequency", current.get("frequency", "manual"))).strip().lower() or "manual"
+    send_hour_utc = int(preferences.get("send_hour_utc", current.get("send_hour_utc", 7)))
+
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT created_at FROM notification_preferences WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO notification_preferences(
+                user_id, email, is_enabled, min_score, asset_types_json, max_items,
+                frequency, send_hour_utc, last_sent_at, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                email,
+                is_enabled,
+                min_score,
+                _json_dumps(asset_types),
+                max_items,
+                frequency,
+                send_hour_utc,
+                current.get("last_sent_at", ""),
+                existing["created_at"] if existing else now,
+                now,
+            ),
+        )
+        conn.commit()
+
+    save_settings(
+        {
+            "notification_email": email,
+            "email_notifications_enabled": bool(is_enabled),
+            "notification_min_score": min_score,
+            "notification_asset_types": asset_types,
+            "notification_digest_limit": max_items,
+            "notification_frequency": frequency,
+            "notification_hour_utc": send_hour_utc,
+        },
+        user_id=user_id,
+    )
+
+
+def set_notification_last_sent(sent_at: str | None = None, user_id: str | None = None) -> None:
+    user_id = user_id or get_current_user_id()
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE notification_preferences SET last_sent_at = ?, updated_at = ? WHERE user_id = ?",
+            (sent_at or utc_now(), utc_now(), user_id),
+        )
+        conn.commit()
+
+
+def log_notification_delivery(
+    email: str,
+    subject: str,
+    status: str,
+    item_count: int,
+    error_message: str = "",
+    user_id: str | None = None,
+) -> None:
+    user_id = user_id or get_current_user_id()
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO notification_deliveries(
+                user_id, email, subject, status, item_count, error_message, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (user_id, email, subject, status, int(item_count), error_message, utc_now()),
+        )
+        conn.commit()
+
+
+def list_notification_deliveries(limit: int = 20, user_id: str | None = None) -> pd.DataFrame:
+    user_id = user_id or get_current_user_id()
+    with get_connection() as conn:
+        return pd.read_sql_query(
+            """
+            SELECT email, subject, status, item_count, error_message, created_at
+            FROM notification_deliveries
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            conn,
+            params=(user_id, int(limit)),
+        )
+
+
+def add_trade_journal_entry(entry: dict[str, Any], user_id: str | None = None) -> None:
+    user_id = user_id or get_current_user_id()
+    now = utc_now()
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO trade_journal_entries(
+                user_id, ticker, direction, setup_tag, thesis, invalidation,
+                entry_price, stop_loss, target_price, risk_amount, planned_rr,
+                realized_pnl, realized_r, status, opened_at, closed_at,
+                notes, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                str(entry.get("ticker", "")).upper().strip(),
+                str(entry.get("direction", "LONG") or "LONG"),
+                str(entry.get("setup_tag", "")).strip(),
+                entry.get("thesis", ""),
+                entry.get("invalidation", ""),
+                entry.get("entry_price"),
+                entry.get("stop_loss"),
+                entry.get("target_price"),
+                entry.get("risk_amount"),
+                entry.get("planned_rr"),
+                entry.get("realized_pnl"),
+                entry.get("realized_r"),
+                str(entry.get("status", "open") or "open"),
+                str(entry.get("opened_at") or now),
+                entry.get("closed_at"),
+                entry.get("notes", ""),
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+
+
+def update_trade_journal_entry(entry_id: int, updates: dict[str, Any], user_id: str | None = None) -> None:
+    user_id = user_id or get_current_user_id()
+    allowed = {
+        "setup_tag",
+        "thesis",
+        "invalidation",
+        "entry_price",
+        "stop_loss",
+        "target_price",
+        "risk_amount",
+        "planned_rr",
+        "realized_pnl",
+        "realized_r",
+        "status",
+        "opened_at",
+        "closed_at",
+        "notes",
+        "direction",
+        "ticker",
+    }
+    payload = {k: v for k, v in updates.items() if k in allowed}
+    if not payload:
+        return
+    payload["updated_at"] = utc_now()
+    columns = list(payload.keys())
+    set_clause = ", ".join([f"{col} = ?" for col in columns])
+    values = [payload[col] for col in columns] + [entry_id, user_id]
+    with get_connection() as conn:
+        conn.execute(
+            f"UPDATE trade_journal_entries SET {set_clause} WHERE id = ? AND user_id = ?",
+            values,
+        )
+        conn.commit()
+
+
+def get_trade_journal_entries(status: str | None = None, user_id: str | None = None) -> pd.DataFrame:
+    user_id = user_id or get_current_user_id()
+    sql = "SELECT * FROM trade_journal_entries WHERE user_id = ?"
+    params: list[Any] = [user_id]
+    if status:
+        sql += " AND status = ?"
+        params.append(status)
+    sql += " ORDER BY created_at DESC, id DESC"
+    with get_connection() as conn:
+        return pd.read_sql_query(sql, conn, params=params)
+
+
+def trade_journal_stats(user_id: str | None = None) -> dict[str, Any]:
+    entries = get_trade_journal_entries(user_id=user_id)
+    if entries.empty:
+        return {
+            "total": 0,
+            "open": 0,
+            "closed": 0,
+            "win_rate": 0.0,
+            "expectancy_r": 0.0,
+            "avg_planned_rr": 0.0,
+            "avg_realized_r": 0.0,
+        }
+
+    total = len(entries)
+    open_count = int((entries["status"] == "open").sum()) if "status" in entries else 0
+    closed = entries[entries["status"] == "closed"] if "status" in entries else pd.DataFrame()
+    closed_count = len(closed)
+
+    win_rate = 0.0
+    expectancy_r = 0.0
+    avg_realized_r = 0.0
+    if not closed.empty and "realized_r" in closed:
+        r_series = pd.to_numeric(closed["realized_r"], errors="coerce").dropna()
+        if not r_series.empty:
+            win_rate = float((r_series > 0).mean())
+            expectancy_r = float(r_series.mean())
+            avg_realized_r = float(r_series.mean())
+
+    avg_planned_rr = 0.0
+    if "planned_rr" in entries:
+        planned = pd.to_numeric(entries["planned_rr"], errors="coerce").dropna()
+        if not planned.empty:
+            avg_planned_rr = float(planned.mean())
+
+    return {
+        "total": total,
+        "open": open_count,
+        "closed": closed_count,
+        "win_rate": win_rate,
+        "expectancy_r": expectancy_r,
+        "avg_planned_rr": avg_planned_rr,
+        "avg_realized_r": avg_realized_r,
+    }

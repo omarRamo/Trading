@@ -6,10 +6,13 @@ import streamlit as st
 from config import RISK_PROFILES
 from database import (
     get_assets,
+    get_notification_preferences,
+    list_notification_deliveries,
     load_settings,
     save_settings,
     seed_demo_portfolio,
     set_asset_active,
+    upsert_notification_preferences,
     upsert_asset,
 )
 from utils.ui import bootstrap_page
@@ -33,6 +36,20 @@ with st.form("settings_form"):
         cash_pct = st.number_input("Allocation cash (%)", min_value=0.0, max_value=100.0, value=float(settings.get("target_allocation_cash", 0.1)) * 100, step=1.0)
     base_currency = st.text_input("Devise principale", value=settings.get("base_currency", "EUR"))
     max_position = st.slider("Risque maximum par action individuelle", min_value=0.05, max_value=0.10, value=float(settings.get("max_individual_position", 0.08)), step=0.005, format="%.3f")
+    risk_per_trade_pct = st.number_input(
+        "Risque par trade (%)",
+        min_value=0.1,
+        max_value=5.0,
+        value=float(settings.get("risk_per_trade_pct", 0.01)) * 100,
+        step=0.1,
+    )
+    default_rr_target = st.number_input(
+        "R/R cible par defaut",
+        min_value=0.5,
+        max_value=10.0,
+        value=float(settings.get("default_rr_target", 2.0)),
+        step=0.1,
+    )
     risk_profile = st.selectbox(
         "Profil de risque",
         RISK_PROFILES,
@@ -66,6 +83,8 @@ if submitted:
                 "base_currency": base_currency.upper().strip() or "EUR",
                 "max_individual_position": max_position,
                 "hard_max_individual_position": 0.10,
+                "risk_per_trade_pct": risk_per_trade_pct / 100,
+                "default_rr_target": default_rr_target,
                 "risk_profile": risk_profile,
                 "investment_horizon": investment_horizon,
                 "tech_exposure_limit": tech_limit,
@@ -79,6 +98,79 @@ if submitted:
 st.subheader("Watchlist Revolut")
 assets = get_assets(active_only=False)
 st.dataframe(assets, use_container_width=True, hide_index=True)
+
+st.subheader("Notifications email")
+notification_prefs = get_notification_preferences()
+with st.form("notification_settings_form"):
+    notif_enabled = st.checkbox(
+        "Activer les emails de recommandations",
+        value=bool(notification_prefs.get("is_enabled", False)),
+    )
+    notif_email = st.text_input(
+        "Email de destination",
+        value=str(notification_prefs.get("email", "")),
+        placeholder="you@example.com",
+    )
+    coln1, coln2, coln3 = st.columns(3)
+    with coln1:
+        notif_min_score = st.slider(
+            "Score minimum",
+            min_value=0.0,
+            max_value=100.0,
+            value=float(notification_prefs.get("min_score", 60.0)),
+            step=1.0,
+        )
+    with coln2:
+        notif_max_items = st.number_input(
+            "Nombre max d'idees",
+            min_value=1,
+            max_value=30,
+            value=int(notification_prefs.get("max_items", 10)),
+            step=1,
+        )
+    with coln3:
+        notif_hour = st.number_input(
+            "Heure d'envoi UTC",
+            min_value=0,
+            max_value=23,
+            value=int(notification_prefs.get("send_hour_utc", 7)),
+            step=1,
+        )
+
+    notif_asset_types = st.multiselect(
+        "Types d'actifs inclus",
+        ["ETF", "ACTION"],
+        default=list(notification_prefs.get("asset_types", ["ETF", "ACTION"])),
+    )
+    notif_frequency = st.selectbox(
+        "Frequence",
+        ["manual", "daily"],
+        index=0 if str(notification_prefs.get("frequency", "manual")) != "daily" else 1,
+    )
+    notif_submitted = st.form_submit_button("Sauvegarder les notifications")
+
+if notif_submitted:
+    if notif_enabled and not notif_email.strip():
+        st.error("Renseigne un email de destination avant d'activer l'envoi.")
+    else:
+        upsert_notification_preferences(
+            {
+                "is_enabled": notif_enabled,
+                "email": notif_email.strip(),
+                "min_score": notif_min_score,
+                "asset_types": notif_asset_types or ["ETF", "ACTION"],
+                "max_items": int(notif_max_items),
+                "frequency": notif_frequency,
+                "send_hour_utc": int(notif_hour),
+            }
+        )
+        st.success("Parametres de notification sauvegardes.")
+        st.rerun()
+
+delivery_history = list_notification_deliveries(limit=10)
+if not delivery_history.empty:
+    st.caption("Historique des 10 derniers envois")
+    st.dataframe(delivery_history, use_container_width=True, hide_index=True)
 
 with st.form("asset_form"):
     ticker = st.text_input("Ticker")
