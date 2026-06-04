@@ -3,11 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from database import (
-    get_notification_preferences,
-    log_notification_delivery,
-    set_notification_last_sent,
-)
+import database as db
 from email_notifications import send_recommendations_digest
 from strategy import generate_recommendations
 from utils.formatting import format_percent
@@ -140,7 +136,21 @@ if st.session_state.get("latest_ideas"):
         st.info(ideas[0]["disclaimer"])
 
     st.subheader("Envoi email")
-    prefs = get_notification_preferences()
+    get_notification_preferences = getattr(db, "get_notification_preferences", None)
+    log_notification_delivery = getattr(db, "log_notification_delivery", None)
+    set_notification_last_sent = getattr(db, "set_notification_last_sent", None)
+    prefs = (
+        get_notification_preferences()
+        if callable(get_notification_preferences)
+        else {
+            "email": "",
+            "min_score": 60.0,
+            "asset_types": ["ETF", "ACTION"],
+            "max_items": 10,
+            "frequency": "manual",
+            "is_enabled": False,
+        }
+    )
     coln1, coln2 = st.columns([2, 1])
     with coln1:
         target_email = st.text_input(
@@ -164,20 +174,23 @@ if st.session_state.get("latest_ideas"):
             target_email=target_email,
         )
         if result.ok:
-            log_notification_delivery(
-                email=target_email.strip(),
-                subject=result.subject,
-                status="sent",
-                item_count=result.item_count,
-            )
-            set_notification_last_sent()
+            if callable(log_notification_delivery):
+                log_notification_delivery(
+                    email=target_email.strip(),
+                    subject=result.subject,
+                    status="sent",
+                    item_count=result.item_count,
+                )
+            if callable(set_notification_last_sent):
+                set_notification_last_sent()
             st.success(result.message)
         else:
-            log_notification_delivery(
-                email=target_email.strip(),
-                subject=result.subject or "Trading Digest",
-                status="error",
-                item_count=result.item_count,
-                error_message=result.message,
-            )
+            if callable(log_notification_delivery):
+                log_notification_delivery(
+                    email=target_email.strip(),
+                    subject=result.subject or "Trading Digest",
+                    status="error",
+                    item_count=result.item_count,
+                    error_message=result.message,
+                )
             st.error(result.message)

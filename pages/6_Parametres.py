@@ -4,15 +4,13 @@ import pandas as pd
 import streamlit as st
 
 from config import RISK_PROFILES
+import database as db
 from database import (
     get_assets,
-    get_notification_preferences,
-    list_notification_deliveries,
     load_settings,
     save_settings,
     seed_demo_portfolio,
     set_asset_active,
-    upsert_notification_preferences,
     upsert_asset,
 )
 from utils.ui import bootstrap_page
@@ -100,7 +98,23 @@ assets = get_assets(active_only=False)
 st.dataframe(assets, use_container_width=True, hide_index=True)
 
 st.subheader("Notifications email")
-notification_prefs = get_notification_preferences()
+get_notification_preferences = getattr(db, "get_notification_preferences", None)
+upsert_notification_preferences = getattr(db, "upsert_notification_preferences", None)
+list_notification_deliveries = getattr(db, "list_notification_deliveries", None)
+
+notification_prefs = (
+    get_notification_preferences()
+    if callable(get_notification_preferences)
+    else {
+        "is_enabled": False,
+        "email": "",
+        "min_score": 60.0,
+        "asset_types": ["ETF", "ACTION"],
+        "max_items": 10,
+        "frequency": "manual",
+        "send_hour_utc": 7,
+    }
+)
 with st.form("notification_settings_form"):
     notif_enabled = st.checkbox(
         "Activer les emails de recommandations",
@@ -152,6 +166,8 @@ with st.form("notification_settings_form"):
 if notif_submitted:
     if notif_enabled and not notif_email.strip():
         st.error("Renseigne un email de destination avant d'activer l'envoi.")
+    elif not callable(upsert_notification_preferences):
+        st.warning("Module de notifications non disponible dans cette version. Mise a jour necessaire.")
     else:
         upsert_notification_preferences(
             {
@@ -167,7 +183,7 @@ if notif_submitted:
         st.success("Parametres de notification sauvegardes.")
         st.rerun()
 
-delivery_history = list_notification_deliveries(limit=10)
+delivery_history = list_notification_deliveries(limit=10) if callable(list_notification_deliveries) else pd.DataFrame()
 if not delivery_history.empty:
     st.caption("Historique des 10 derniers envois")
     st.dataframe(delivery_history, use_container_width=True, hide_index=True)

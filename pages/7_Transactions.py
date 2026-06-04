@@ -4,16 +4,13 @@ from datetime import date
 
 import streamlit as st
 
-from charts import trade_journal_r_chart
+import charts as charts_lib
+import database as db
 from database import (
-    add_trade_journal_entry,
     add_transaction,
     get_assets,
-    get_trade_journal_entries,
     get_transactions,
     load_settings,
-    trade_journal_stats,
-    update_trade_journal_entry,
 )
 from utils.formatting import format_percent
 from utils.ui import bootstrap_page
@@ -22,6 +19,11 @@ from utils.ui import bootstrap_page
 bootstrap_page("Transactions")
 
 settings = load_settings()
+trade_journal_r_chart = getattr(charts_lib, "trade_journal_r_chart", None)
+add_trade_journal_entry = getattr(db, "add_trade_journal_entry", None)
+get_trade_journal_entries = getattr(db, "get_trade_journal_entries", None)
+trade_journal_stats = getattr(db, "trade_journal_stats", None)
+update_trade_journal_entry = getattr(db, "update_trade_journal_entry", None)
 
 st.subheader("Calculateur de taille de position")
 calc_col1, calc_col2, calc_col3, calc_col4 = st.columns(4)
@@ -157,7 +159,9 @@ with st.form("trade_journal_form"):
     journal_submit = st.form_submit_button("Ajouter au journal")
 
 if journal_submit:
-    if not j_ticker.strip() or not j_setup.strip():
+    if not callable(add_trade_journal_entry):
+        st.warning("Journal de trades non disponible dans cette version. Mise a jour necessaire.")
+    elif not j_ticker.strip() or not j_setup.strip():
         st.error("Ticker et setup tag sont obligatoires pour le journal.")
     else:
         add_trade_journal_entry(
@@ -180,8 +184,14 @@ if journal_submit:
         st.success("Entree de journal ajoutee.")
         st.rerun()
 
-journal_entries = get_trade_journal_entries()
-stats = trade_journal_stats()
+journal_entries = get_trade_journal_entries() if callable(get_trade_journal_entries) else None
+if journal_entries is None:
+    journal_entries = get_transactions().head(0)
+stats = (
+    trade_journal_stats()
+    if callable(trade_journal_stats)
+    else {"total": 0, "open": 0, "win_rate": 0.0, "expectancy_r": 0.0}
+)
 stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
 stat_col1.metric("Trades journal", stats["total"])
 stat_col2.metric("Trades ouverts", stats["open"])
@@ -208,19 +218,25 @@ if not journal_entries.empty:
             with close_col3:
                 close_date = st.date_input("Date de cloture", value=date.today())
             if st.button("Valider cloture"):
-                update_trade_journal_entry(
-                    selected_id,
-                    {
-                        "status": "closed",
-                        "realized_pnl": realized_pnl,
-                        "realized_r": realized_r,
-                        "closed_at": close_date.isoformat(),
-                    },
-                )
-                st.success("Trade clos dans le journal.")
-                st.rerun()
+                if callable(update_trade_journal_entry):
+                    update_trade_journal_entry(
+                        selected_id,
+                        {
+                            "status": "closed",
+                            "realized_pnl": realized_pnl,
+                            "realized_r": realized_r,
+                            "closed_at": close_date.isoformat(),
+                        },
+                    )
+                    st.success("Trade clos dans le journal.")
+                    st.rerun()
+                else:
+                    st.warning("Fonction de cloture non disponible dans cette version.")
 
-    st.plotly_chart(trade_journal_r_chart(journal_entries), use_container_width=True)
+    if callable(trade_journal_r_chart):
+        st.plotly_chart(trade_journal_r_chart(journal_entries), use_container_width=True)
+    else:
+        st.info("Graphique R indisponible sur cette version. Mets a jour charts.py.")
     st.dataframe(journal_entries, use_container_width=True, hide_index=True)
 else:
     st.info("Aucune entree de journal pour le moment.")
