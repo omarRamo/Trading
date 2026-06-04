@@ -1,61 +1,56 @@
-# Assistant local d'investissement mensuel Revolut Trading
+# Local Monthly Investment Assistant (Revolut Trading)
 
-Application Python locale concue comme un compagnon personnel d'aide a la decision pour une strategie DCA prudente et patrimoniale.
+Local Python application designed as a personal decision-support companion for a prudent, long-term DCA strategy.
 
-Objectif:
+Goals:
 
-- donner une vision claire du portefeuille;
-- structurer l'analyse des marches;
-- afficher des alertes de risque;
-- proposer des idees d'actifs a surveiller;
-- preparer une repartition mensuelle indicative;
-- utiliser des signaux simples: interessant, a surveiller, attendre, eviter.
+- provide a clear portfolio view;
+- structure market analysis;
+- display risk alerts;
+- suggest assets worth monitoring;
+- prepare an indicative monthly allocation;
+- use simple signals: interesting, watch, wait, avoid.
 
-L'application ne presente jamais ses resultats comme des ordres obligatoires. La decision finale d'achat ou de vente reste manuelle et appartient uniquement a l'investisseur.
+The app never presents outputs as mandatory trading orders. Final buy/sell decisions are always manual and remain fully under the investor's control.
 
-## Authentification
+## Authentication
 
-L'application propose deux modes:
+The app supports two modes:
 
-- compte local avec email, informations personnelles et mot de passe;
-- connexion Google OAuth si elle est configuree.
+- local account with email, personal details, and password;
+- Google OAuth sign-in when configured.
 
-Compte demo disponible par defaut:
+Local account creation is available on the login page. Passwords are stored as salted PBKDF2 hashes, never in plaintext.
 
-- identifiant: `omar`
-- mot de passe: `admin`
+The first login or account creation automatically creates a profile. Later logins reopen the same profile.
 
-La creation d'un compte local se fait depuis la page de connexion. Le mot de passe est stocke sous forme de hash PBKDF2 avec sel, jamais en clair.
+Each profile has isolated data:
 
-La premiere connexion ou creation de compte cree automatiquement un profil. Les connexions suivantes rouvrent le meme profil.
-
-Chaque profil possede ses propres donnees:
-
-- parametres;
+- settings;
 - watchlist;
-- portefeuille;
+- portfolio;
 - transactions;
-- idees d'investissement;
-- plans mensuels.
+- investment ideas;
+- monthly plans.
 
-Avant authentification, le menu lateral Streamlit est masque pour eviter d'exposer les pages de l'application.
+Before authentication, the Streamlit sidebar is hidden to avoid exposing internal app pages.
 
-## Regles strictes
+## Strict Rules
 
-- Aucun passage d'ordre automatique.
-- Aucune connexion a Revolut pour executer un ordre.
-- Aucun levier.
-- Aucun margin trading.
-- Aucune vente a decouvert.
-- Aucune certitude affichee comme une prediction fiable.
-- Aucun achat propose sur une action deja au-dessus de la limite de concentration.
+- No automated order execution.
+- No Revolut order placement integration.
+- No leverage.
+- No margin trading.
+- No short selling.
+- No certainty presented as a reliable prediction.
+- No proposed buy on a stock already above its concentration limit.
 
-## Strategie cible
+## Target Strategy
 
-- 70 % ETF long terme
-- 20 % actions individuelles
-- 10 % cash / opportunites
-- risque maximum par action individuelle configurable entre 5 % et 10 %
+- 70% long-term ETFs
+- 20% individual stocks
+- 10% cash/opportunities
+- max risk per individual stock configurable between 5% and 10%
 
 ## Structure
 
@@ -107,124 +102,121 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-Sur cette machine, si `python` ouvre le raccourci Microsoft Store, utiliser:
+On Windows, if `python` opens the Microsoft Store shortcut, use:
 
 ```bash
 py -3 -m pip install -r requirements.txt
 ```
 
-## Configuration Google OAuth optionnelle
+## Optional Google OAuth Setup
 
-Cette etape est facultative si tu veux seulement utiliser les comptes locaux email/mot de passe.
+This step is optional if you only want to use local email/password accounts.
 
-Copie le fichier d'exemple:
+Copy the sample file:
 
 ```bash
 copy .streamlit\secrets.toml.example .streamlit\secrets.toml
 ```
 
-Puis renseigne:
+Then fill in:
 
 ```toml
 [google_oauth]
-client_id = "TON_CLIENT_ID_GOOGLE"
-client_secret = "TON_CLIENT_SECRET_GOOGLE"
+client_id = "YOUR_GOOGLE_CLIENT_ID"
+client_secret = "YOUR_GOOGLE_CLIENT_SECRET"
 redirect_uri = "http://localhost:8501"
 ```
 
-Dans Google Cloud Console:
+In Google Cloud Console:
 
-- cree un projet;
-- configure l'ecran de consentement OAuth;
-- cree un client OAuth de type `Application Web`;
-- ajoute `http://localhost:8501` dans les URI de redirection autorises.
+- create a project;
+- configure the OAuth consent screen;
+- create an OAuth client of type `Web application`;
+- add `http://localhost:8501` to authorized redirect URIs.
 
-L'application demande uniquement les scopes `openid email profile`. Elle ne demande pas l'acces aux emails Gmail.
+The app only requests `openid email profile` scopes. It does not request Gmail mailbox access.
 
-## Lancement
+## Run
 
 ```bash
 streamlit run app.py
 ```
 
-Ou avec le lanceur Python Windows:
+Or with the Windows Python launcher:
 
 ```bash
 py -3 -m streamlit run app.py
 ```
 
-L'application sera disponible localement, en general sur:
+The app is available locally, usually at:
 
 ```text
 http://localhost:8501
 ```
 
-## Deploiement Streamlit Community Cloud
+## Streamlit Community Cloud Deployment
 
-Le fichier d'entree pour Streamlit Cloud est:
+The Streamlit Cloud entrypoint is:
 
 ```text
 streamlit_app.py
 ```
 
-Dans Streamlit Community Cloud:
+In Streamlit Community Cloud:
 
 - Repository: `omarRamo/Trading`
 - Branch: `main`
 - Main file path: `streamlit_app.py`
 
-Le fichier `streamlit_app.py` importe `app.py`, donc le lancement local et le deploiement cloud utilisent le meme code.
+`streamlit_app.py` imports `app.py`, so local runs and cloud deployment use the same code path.
 
-## Developper depuis un telephone
+## Develop From a Phone
 
-Le repo contient une configuration GitHub Codespaces:
+The repository includes GitHub Codespaces configuration:
 
 - `.devcontainer/devcontainer.json`
-- port Streamlit `8501` transfere automatiquement
-- dependances installees avec `requirements.txt`
+- Streamlit port `8501` auto-forwarded
+- dependencies installed from `requirements.txt`
 
-Depuis un telephone:
+From a phone:
 
-1. Ouvre le depot GitHub.
-2. Lance un Codespace depuis `Code > Codespaces`.
-3. Dans le terminal du Codespace, execute:
+1. Open the GitHub repository.
+2. Launch a Codespace from `Code > Codespaces`.
+3. In the Codespace terminal, run:
 
 ```bash
 python -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501
 ```
 
-4. Ouvre le port `8501` propose par Codespaces dans le navigateur.
-
-Le compte demo `omar` / `admin` permet de tester l'application sans configurer Google OAuth.
+4. Open the forwarded `8501` port URL in your browser.
 
 ## GitHub Actions
 
-Le workflow `.github/workflows/ci.yml` se lance a chaque push, pull request ou manuellement.
+The workflow `.github/workflows/ci.yml` runs on each push, pull request, or manual trigger.
 
-Il verifie:
+It validates:
 
-- installation des dependances;
-- compilation Python;
-- initialisation SQLite;
-- presence du compte demo `omar` / `admin`;
-- presence de la watchlist et du portefeuille fictif demo.
+- dependency installation;
+- Python bytecode compilation;
+- SQLite initialization;
+- required baseline local account data for app startup checks;
+- default watchlist and sample portfolio data availability.
 
-GitHub Actions sert ici a valider l'application. Le developpement interactif depuis telephone se fait plutot avec GitHub Codespaces.
+GitHub Actions is used here for validation. Interactive development from a phone is better handled with GitHub Codespaces.
 
-## Donnees et confidentialite
+## Data and Privacy
 
-- Le portefeuille, les transactions, les parametres, le cache de marche, les idees calculees et les plans mensuels sont stockes dans SQLite: `data/trading_app.sqlite3`.
-- L'application n'envoie pas tes donnees personnelles a Revolut.
-- Les seuls appels externes prevus servent a recuperer des prix de marche via `yfinance`.
-- La connexion Google sert uniquement a identifier le profil utilisateur local.
-- Les comptes locaux utilisent un mot de passe hache PBKDF2 avec sel.
-- Le compte demo `omar` / `admin` est prevu pour le developpement et les tests.
-- Si un ticker ne repond pas, l'application affiche une erreur non bloquante et continue avec les autres actifs.
-- Aucune API de passage d'ordre n'est presente.
+- Portfolio data, transactions, settings, market cache, computed ideas, and monthly plans are stored in SQLite: `data/trading_app.sqlite3`.
+- The app does not send personal data to Revolut.
+- External calls are limited to market prices via `yfinance`.
+- Google sign-in is only used to identify the local user profile.
+- Local accounts use salted PBKDF2 password hashes.
+- If a ticker request fails, the app shows a non-blocking error and continues with other assets.
+- No order execution API is present.
 
-## Tables SQLite
+## SQLite Tables
 
-Les tables creees automatiquement au premier lancement:
+Tables created automatically on first startup:
 
 - `settings`
 - `assets`
@@ -235,75 +227,75 @@ Les tables creees automatiquement au premier lancement:
 - `monthly_plans`
 - `users`
 
-La table `recommendations` conserve son nom technique pour eviter une migration inutile, mais l'interface parle d'idees d'investissement et de candidats a analyser.
+The `recommendations` table keeps its technical name to avoid unnecessary migration, while the UI labels this section as investment ideas/candidates.
 
-## Watchlist par defaut
+## Default Watchlist
 
-Les tickers sont configurables depuis la page Parametres. La liste initiale contient notamment:
+Tickers are configurable on the Settings page. The initial list includes:
 
-- ETF: `VUSA.L`, `CSPX.L`, `EQQQ.L`, `IWDA.AS`
-- Actions: `NVDA`, `MSFT`, `AAPL`, `GOOGL`, `AMZN`, `TSLA`, `ASML`, `LVMH.PA`, `MC.PA`, `AIR.PA`
+- ETFs: `VUSA.L`, `CSPX.L`, `EQQQ.L`, `IWDA.AS`
+- Stocks: `NVDA`, `MSFT`, `AAPL`, `GOOGL`, `AMZN`, `TSLA`, `ASML`, `LVMH.PA`, `MC.PA`, `AIR.PA`
 
-La disponibilite Revolut peut varier. Verifie toujours le ticker dans Revolut avant toute decision.
+Revolut availability may vary. Always confirm the ticker in Revolut before making any decision.
 
-## Exemple de portefeuille fictif
+## Sample Portfolio
 
-Depuis le Dashboard ou Parametres, clique sur `Charger le portefeuille fictif`.
+From the Dashboard or Settings page, click `Load Sample Portfolio`.
 
-Exemple inclus:
+Included example:
 
-- `IWDA.AS`, ETF MSCI World
-- `VUSA.L`, ETF S&P 500
-- `MSFT`, action individuelle
-- `ASML`, action individuelle
-- cash disponible: 1 200 EUR par defaut
+- `IWDA.AS`, MSCI World ETF
+- `VUSA.L`, S&P 500 ETF
+- `MSFT`, individual stock
+- `ASML`, individual stock
+- available cash: EUR 1,200 by default
 
-## Exemple de strategie mensuelle avec 1 000 EUR
+## Monthly Strategy Example with EUR 1,000
 
-Si l'allocation actuelle est proche de la cible, le moteur part de:
+If current allocation is close to target, the engine starts with:
 
-- environ 700 EUR vers les ETF;
-- environ 200 EUR vers les actions individuelles;
-- environ 100 EUR en cash / opportunites.
+- about EUR 700 to ETFs;
+- about EUR 200 to individual stocks;
+- about EUR 100 in cash/opportunities.
 
-Puis il ajuste:
+Then it adjusts:
 
-- ETF augmentes si la poche ETF est sous-ponderee;
-- actions reduites ou bloquees si la poche actions est trop elevee;
-- cash augmente si la poche cash est sous la cible;
-- ligne action bloquee si elle depasse la limite individuelle configuree.
+- ETF allocation increased when ETF bucket is underweight;
+- stock allocation reduced or blocked when stock bucket is overweight;
+- cash allocation increased when cash bucket is below target;
+- stock line blocked when it exceeds configured per-stock risk limit.
 
-Chaque idee affiche:
+Each idea displays:
 
 - ticker;
-- type d'actif;
-- score de qualite;
-- signal pedagogique;
-- niveau de risque;
-- montant maximum theorique selon la strategie;
-- raison de l'idee;
-- points de vigilance;
-- phrase de validation manuelle.
+- asset type;
+- quality score;
+- educational signal;
+- risk level;
+- theoretical max amount under strategy rules;
+- rationale;
+- caution points;
+- manual validation reminder.
 
 ## Pages
 
-- Dashboard: synthese, allocation, alertes, meilleurs candidats, enveloppe mensuelle.
-- Portefeuille: ajout manuel de positions, valorisation, poids, P/L latent, allocation.
-- Marches: indicateurs yfinance, MM50, MM200, RSI, volatilite, comparaisons.
-- Plan mensuel: repartition indicative de l'enveloppe et candidats a analyser.
-- Idees d'investissement: scoring 0 a 100, risque, vigilance et validation manuelle.
-- Backtest: DCA ETF, 70/20/10, achat unique au depart.
-- Parametres: allocation cible, risque, cash, watchlist configurable.
-- Transactions: journal local des operations saisies manuellement.
-- Profil: compte utilisateur, statistiques locales et montants personnels.
-- Wiki: explication simple des pages et notions principales.
+- Dashboard: summary, allocation, alerts, top candidates, monthly envelope.
+- Portfolio: manual position entry, valuation, weights, unrealized P/L, allocation.
+- Markets: yfinance indicators, MA50, MA200, RSI, volatility, comparisons.
+- Monthly Plan: indicative envelope split and candidates to review.
+- Investment Ideas: 0-100 scoring, risk, caution flags, manual validation.
+- Backtest: ETF DCA, 70/20/10, one-time initial buy.
+- Settings: target allocation, risk, cash, configurable watchlist.
+- Transactions: local journal of manually entered operations.
+- Profile: user account, local stats, and personal amounts.
+- Wiki: simple explanation of pages and key concepts.
 
-## Ameliorations possibles
+## Possible Improvements
 
-- Conversion FX fiable EUR/USD/GBP pour valoriser toutes les lignes en EUR.
-- Import CSV Revolut pour eviter la saisie manuelle.
-- Analyse fondamentale simple: croissance, marges, dette, valorisation.
-- Limites sectorielles plus fines par ETF avec decomposition look-through.
-- Scoring plus robuste par regime de marche.
-- Export PDF/CSV du plan mensuel.
-- Tests unitaires complets et CI.
+- Reliable EUR/USD/GBP FX conversion to value all lines in EUR.
+- Revolut CSV import to reduce manual entry.
+- Basic fundamental analysis: growth, margins, debt, valuation.
+- Finer sector limits per ETF with look-through decomposition.
+- More robust scoring by market regime.
+- PDF/CSV export for the monthly plan.
+- Full unit test coverage and CI hardening.
